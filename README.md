@@ -1,9 +1,12 @@
-## Data preparation
+## Introduction
+
+This is a project for the Tianchi competition: adversarial attack for universal object detection. Here is the url: https://tianchi.aliyun.com/competition/entrance/531806/information. We obtain the third in this contest.
+
+## Data preparation and model checkpoint.
 
 - Download 1000 pictures needed for the competition on the official [website](https://tianchi.aliyun.com/competition/entrance/531806/information)
-- You can get data (`images.zip`)，and the definition, weight and evaluation code of two white box models (`eval_code.zip`). We use yolov4 and faster_rcnn as whitebox models.
-
-  
+- You can get data (`images.zip`) and the definition, weight and evaluation code of two white box models (`eval_code.zip`). We use yolov4 and faster_rcnn as whitebox models.
+- Create two new folders, `images` and `models`, Unzip `images.zip` to `images`, and move all checkpoint and config files to models.
 
 ## Requirements
 
@@ -25,10 +28,10 @@ After installation, put the mmdetection directory into `eval_code/` below. Alter
 
 ## Usage
 
-Unzip `eval_code.zip`，move and unzip `images.zip` to `select1000_new`, ensure the following structure:
+Unzip `eval_code.zip`，move and unzip `images.zip` to` images`, ensure the following structure:
 
 ```
-|--select1000_new
+|--images
     |-- XXX.png
     |-- XXX.png
     |-- XXX.png
@@ -36,13 +39,27 @@ Unzip `eval_code.zip`，move and unzip `images.zip` to `select1000_new`, ensure 
     |-- XXX.png
 ```
 
-Meanwhile, keep the filename unchanged and place the patched images into `select1000_new_p` 
-
-Finally, run `python eval.py`
-
-## Frequent issues
+Move all checkpoints and config files to `models` as:
 
 ```
-ERROR move http://tianchi-race-upload.oss-cn- hangzhou.aliyuncs.com/result/race/231760/516/282507/1095279440490/1575518156673_images.zip? Expires=1575604621&OSSAccessKeyId=LTAIzTotdnzdypip&Signature=tqz9QjtYoPG85lIhlGz43A3VrRw%3D&response- content-disposition=attachment%3B%20 failed
+|--models
+    |-- faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth
+    |-- yolov4.cfg
+    |-- yolov4.weights
 ```
-This is caused by the illegal submission of the file. For example, all images are directly compressed and packaged without placing into `images` folder, or the folder is named incorrectly. In order to submit successfully, please make sure that all images are placed in the `images` folder, then zip the `images` directory and submit.
+
+## Run Attack algorithm
+
+```bash
+python attack.py --patch_type grid --lines 3 --box_scale 1.0
+python attack.py --patch_type grid --lines 2 --box_scale 1.0
+python attack.py --patch_type grid --lines 1 --box_scale 1.0
+
+
+python attack.py --patch_type astroid
+```
+
+## Run ensemble algorithm
+```bash
+python ensemble.py
+```
