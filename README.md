@@ -60,4 +60,6 @@ python attack.py --patch_type astroid
 ```
 
 ## Run ensemble algorithm
+```bash
 python ensemble.py
+```
