@@ -1,0 +1,9 @@
+mmdetection
+utils
+*.png
+save_models
+save_models_10x20x20/
+output*
+images*
+tool
+models
