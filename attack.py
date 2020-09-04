@@ -16,7 +16,7 @@ from utils.utils import *
 from constant import *
 import argparse
 
-def create_astroid_mask(darknet_model, faster_model, image_path, shape=(500, 500), size=50):
+def create_astroid_mask(darknet_model, faster_model, image_path, box_scale, shape=(500, 500)):
     mask = torch.zeros(*shape, 3)
     """
     img = Image.open(img_path).convert('RGB')
@@ -60,14 +60,22 @@ def create_astroid_mask(darknet_model, faster_model, image_path, shape=(500, 500
         y_middle = (y1+y2)//2
         x_middle = (x1+x2)//2
 
-        cross_line_x_len = x_middle-x1
-        cross_line_y_len = y_middle-y1
-        cross_line_len = max(y_middle-y1, x_middle-x1)
+        # shrink box
+        box_h, box_w = int((y2-y1)*box_scale), int((x2-x1)*box_scale)
+        y11 = y_middle-box_h//2
+        y22 = y_middle+box_h//2
+        x11 = x_middle-box_w//2
+        x22 = x_middle+box_w//2
+
+
+        cross_line_x_len = x_middle-x11
+        cross_line_y_len = y_middle-y11
+        cross_line_len = max(y_middle-y11, x_middle-x11)
         y_step, x_step = cross_line_y_len/cross_line_len, cross_line_x_len/cross_line_len
 
         tmp_mask = torch.zeros(mask.shape)
-        tmp_mask[y_middle, x1:x2, :] = 1
-        tmp_mask[y1:y2, x_middle, :] = 1
+        tmp_mask[y_middle, x11:x22, :] = 1
+        tmp_mask[y11:y22, x_middle, :] = 1
         for i in range(1, cross_line_len):
             tmp_mask[y_middle-int(i*y_step), x_middle-int(i*x_step), :] = 1
             tmp_mask[y_middle+int(i*y_step), x_middle-int(i*x_step), :] = 1
@@ -191,6 +199,11 @@ def specific_attack(model_helpers, img_path, mask, save_image_dir):
     loop = asyncio.get_event_loop()
     while t<max_iterations:
         t+=1
+
+        # check connectivity
+        patch_abs = torch.abs(get_delta(w)-img).sum(-1)
+        patch_abs[patch_abs==0] += 1
+
         patch_img = img * (1-mask) + get_delta(w)*mask
         patch_img = patch_img.to(device)
 
@@ -246,7 +259,7 @@ if __name__ == "__main__":
     if patch_type == "grid":
         save_image_dir = "images_p_grid_{}x{}_{}".format(lines, lines, box_scale)
     else:
-        save_image_dir = "images_p_astroid"
+        save_image_dir = "images_p_astroid_{}".format(box_scale)
     os.system("mkdir -p {}".format(save_image_dir))
 
 
@@ -262,7 +275,7 @@ if __name__ == "__main__":
         if patch_type=="grid":
             mask = create_grid_mask(yolov4_helper.darknet_model, faster_helper.model, img_path, lines, box_scale)
         else:
-            mask = create_astroid_mask(yolov4_helper.darknet_model, faster_helper.model, img_path)
+            mask = create_astroid_mask(yolov4_helper.darknet_model, faster_helper.model, img_path, box_scale)
         success_attack = specific_attack(model_helpers, img_path, mask, save_image_dir)
         if success_attack: success_count += 1
         print("success: {}/{}".format(success_count, i))
