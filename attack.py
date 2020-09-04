@@ -201,10 +201,12 @@ def specific_attack(model_helpers, img_path, mask, save_image_dir):
         t+=1
 
         # check connectivity
-        patch_abs = torch.abs(get_delta(w)-img).sum(-1)
-        patch_abs[patch_abs==0] += 1
+        patch_connecticity = torch.abs(get_delta(w)-img).sum(-1)
+        patch_connecticity = (patch_connecticity==0)
+        patch = get_delta(w)
+        patch[patch_connecticity] += 1
 
-        patch_img = img * (1-mask) + get_delta(w)*mask
+        patch_img = img * (1-mask) + patch*mask
         patch_img = patch_img.to(device)
 
         attack_loss = 0
