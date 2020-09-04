@@ -107,7 +107,7 @@ class Helper():
         self.data = scatter(self.data, [device])[0]
 
     def get_img_metas(self):
-        self.data_init("../images/991.png")
+        self.data_init("images/991.png")
         self.img_metas = self.data['img_metas'][0]
 
     def get_rpn_cls_scores(self, img):
