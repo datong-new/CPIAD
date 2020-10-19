@@ -1,6 +1,6 @@
 ## Introduction
 
-This is a project for the Tianchi competition: adversarial attack for universal object detection. Here is the url: https://tianchi.aliyun.com/competition/entrance/531806/information. We obtain the third in this contest.
+This is a project for the Tianchi competition: adversarial attack for universal object detection. Here is the url: https://tianchi.aliyun.com/competition/entrance/531806/information. We obtain the second in this contest.
 
 ## Data preparation and model checkpoint.
 
