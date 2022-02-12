@@ -33,7 +33,7 @@ class VanillaGradient():
         loss = 0
         for helper in self.helpers:
             #al, _ = helper.attack_loss(image_tensor)
-            al, _ = helper.loss_in_box(image_tensor, box=box)
+            al, _, _ = helper.loss_in_box(image_tensor, box=box)
             loss += al
         if loss==0:
             return np.zeros(image_tensor.shape)
@@ -65,8 +65,8 @@ class IntegratedGradients(VanillaGradient):
         grad_sum = np.zeros((H,W,C))
         image_diff = image_tensor - baseline
 
-        #mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
-        #return mask.sum(-1)
+        mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
+        return mask.sum(-1)
 
 
         for step, alpha in enumerate(np.linspace(0, 1, steps)):

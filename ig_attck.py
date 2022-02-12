@@ -29,7 +29,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     IG = IntegratedGradients(model_helpers)
 
     t, max_iterations = 0, 1000
-    eps = 1
+    eps = 5
     w = torch.zeros(img.shape).float()+127
     w.requires_grad = True
     success_attack = False
@@ -48,12 +48,16 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     #    model_helpers[0].loss_in_box(img, box)
     #exit(0)
     ##
-    print("len(boxes)", len(boxes))
 
+    add_interval = 10
+    max_perturb_num = 500*500*0.015
+    max_iterations = (max_perturb_num//k) * add_interval
 
 
     while t<max_iterations:
-        if t%50==0:
+        if t%add_interval==0:
+            if len(boxes)==0:
+                boxes = det_bboxes
             while True and len(boxes)>0:
                 mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=boxes[0])
                 if mask_.sum()==0: 
@@ -65,7 +69,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             mask_ = mask_>kth
 
             mask = mask.cpu().numpy()
-            if (mask+mask_).sum()<500*500*0.01: 
+            if (mask+mask_).sum()<max_perturb_num: 
                 mask = (mask+mask_)>0
             mask = torch.tensor(mask).to(w.device).float()
             print("mask.sum", mask.sum())
@@ -79,16 +83,13 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             al, on = helper.attack_loss(adv_img)
 
             if len(boxes)>0:
-                box_al, box_on = helper.loss_in_box(adv_img, boxes[0])
+                box_al, box_on, det_bboxes = helper.loss_in_box(adv_img, boxes[0])
 
                 box_loss += box_al
                 box_object_num += box_on
 
             attack_loss += al
             object_num += on
-
-        print("len(boxes)", len(boxes))
-
 
         if min_object_num>object_num:
             min_object_num = object_num
@@ -114,7 +115,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             continue
 
         attack_loss.backward()
-        #box_loss.backward()
+
         w = w - eps * w.grad.sign()
         w = img * (1-mask[:,:,None]) + w*mask[:,:,None]
         w = w.detach().to(mask.device)

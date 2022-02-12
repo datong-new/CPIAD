@@ -153,11 +153,11 @@ class Helper():
             #import pdb; pdb.set_trace()
             #print("bbox_iou", bbox_iou(det_box, box))
 
-            if bbox_iou(det_box, box)>0.5:
+            if bbox_iou(det_box, box)>0.7:
                 loss += det_score
                 object_num += 1
 
-        return loss, object_num
+        return loss, object_num, det_bboxes
 
     def attack_loss(self, img, t=0.25):
         assert self.img_metas is not None
