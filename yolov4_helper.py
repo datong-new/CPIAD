@@ -88,7 +88,24 @@ class Helper():
 
         return scores
 
-    async def attack_loss(self, img, t=0.45):
+    def loss_in_box(self, img, box):
+        img = _input_transform(img).to(device)
+        output = self.darknet_model(img)
+
+        import pdb;pdb.set_trace()
+
+        img_h, img_w = img.shape[-2:]
+        out_h, out_w = output.shape[-2:]
+        scale_h, scale_w = out_h*1.0/img_h, out_w*1.0/img_w
+        box = [box[0]*scale_w, box[1]*scale_h, box[2]*scale_w, box[3]*scale_h]
+        output = output[:,:,box[1]:box[3], box[0]:box[2]]
+
+
+
+
+
+
+    def attack_loss(self, img, t=0.45):
         img = img.to(device)
         scores = self.get_cls_scores(img)
         thresh_loss = 0

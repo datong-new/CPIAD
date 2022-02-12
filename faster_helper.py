@@ -9,6 +9,7 @@ from mmdet.apis import init_detector, inference_detector
 from mmdet.core import bbox2result
 from torch import nn
 from constant import *
+from utils.utils import bbox_iou
 
 mean = torch.tensor([123.675, 116.28 , 103.53 ], dtype=torch.float)
 std = torch.tensor([58.395, 57.12 , 57.375] ,dtype=torch.float)
@@ -129,10 +130,36 @@ class Helper():
         assert self.model.roi_head.with_bbox
         det_bboxes, det_scores = self.model.roi_head.simple_test_bboxes(x, 
                 img_metas, proposal_list, None, rescale=rescale)
-        return det_scores[:, :-1] # background is the last class and exclude it
+        return det_scores[0][:, :-1] # background is the last class and exclude it
 
+    def loss_in_box(self, img, box, t=0.25):
+        assert self.img_metas is not None
+        img = img.to(device)
+        img = self.input_transforms(img).unsqueeze(0)
 
-    async def attack_loss(self, img, t=0.25):
+        x = self.model.extract_feat(img)
+        self.features = x
+        proposal_list = self.model.rpn_head.simple_test_rpn(x, self.img_metas)
+        det_bboxes, det_scores = self.model.roi_head.simple_test_bboxes(x, 
+                self.img_metas, proposal_list, None, rescale=True)
+
+        det_bboxes, det_scores = det_bboxes[0], det_scores[0][:,:-1]
+        det_bboxes, det_scores = det_bboxes.reshape(-1, 4), det_scores.reshape(-1)
+        mask = det_scores>t
+        det_bboxes, det_scores = det_bboxes[mask], det_scores[mask]
+        loss, object_num = 0, 0
+        for i in range(det_scores.shape[0]):
+            det_box, det_score = det_bboxes[i], det_scores[i]
+            #import pdb; pdb.set_trace()
+            #print("bbox_iou", bbox_iou(det_box, box))
+
+            if bbox_iou(det_box, box)>0.5:
+                loss += det_score
+                object_num += 1
+
+        return loss, object_num
+
+    def attack_loss(self, img, t=0.25):
         assert self.img_metas is not None
         img = img.to(device)
         img = self.input_transforms(img).unsqueeze(0)
