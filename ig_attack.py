@@ -49,14 +49,15 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     #exit(0)
     ##
 
-    add_interval = 60
+    add_interval = 100
     max_perturb_num = 500*500*0.015
-    max_iterations = (max_perturb_num//k) * add_interval
+    max_iterations = 3500
     first_box_add = True
+    add_num = 0
 
 
     while t<max_iterations:
-        if t%add_interval==0:
+        if add_num%add_interval==0:
             if len(boxes)==0:
                 boxes = det_bboxes
             while True and len(boxes)>0:
@@ -65,11 +66,15 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
                     first_box_add = True
                     boxes=boxes[1:]
                 else: break
+            if len(boxes)==0: k==0
+            else:
+                box = [int(item) for item in boxes[0]]
+                k = max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.004), 20)
 
-            box = boxes[0]
-            #k = int((box[2]-box[0]) * (box[3]-box[1]) * 0.005) if first_box_add else 100
-            k = max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.003), 20)
-            first_box_add = False
+            tmp_mat = np.ones(mask_.shape) * 1e6
+            tmp_mat[box[1]:box[3], box[0]:box[2]] = 0
+
+            mask_ =  mask_-tmp_mat# zeros items outside box
 
             mask_ = mask_ - mask.numpy()*1e7
             kth = np.sort(mask_.reshape(-1))[::-1][k]
@@ -78,6 +83,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             mask = mask.cpu().numpy()
             if (mask+mask_).sum()<max_perturb_num: 
                 mask = (mask+mask_)>0
+            else: break
             mask = torch.tensor(mask).to(w.device).float()
             print("mask.sum", mask.sum())
 
@@ -117,9 +123,11 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         if object_num==0:
             success_attack = True
             break
+        add_num += 1
         if box_object_num==0 and len(boxes)>0: 
             first_box_add = True
             boxes=boxes[1:]
+            add_num = 0
             continue
 
         attack_loss.backward()

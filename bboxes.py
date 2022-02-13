@@ -31,8 +31,8 @@ def get_faster_boxes(image_path, faster_model=FasterHelper().model):
         if len(box)>0:
             boxes += box.tolist()
 
-    boxes = sorted(boxes, key=lambda x:(x[2]-x[0])*(x[3]-x[1])) # sort by area
     boxes = [box[:4] for box in boxes if box[-1]>0.3]
+    boxes = sorted(boxes, key=lambda x:(x[2]-x[0])*(x[3]-x[1])) # sort by area
 
     return boxes
 
