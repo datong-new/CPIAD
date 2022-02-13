@@ -55,26 +55,38 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     max_iterations = add_interval*80
     first_box_add = True
     add_num = 0
-    baseline = img*0.9
 
 
     while t<max_iterations:
         if add_num%add_interval==0:
+            #baseline = img + (torch.rand(img.shape, device=img.device)-0.5) * 10
+            baseline = img * torch.FloatTensor(img.shape, device=img.device).uniform_(0.8, 1.2)
+
             if len(boxes)==0:
                 box = det_bboxes[0]
+                #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device))
+                k=50
             else:
                 box = boxes[0]
-            while True and len(boxes)>0:
-                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
-                if mask_.sum()==0: 
-                    first_box_add = True
-                    boxes=boxes[1:]
-                else: break
+                box = [int(item) for item in box]
+                k = min(
+                        max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.005), 20),
+                        200)
 
-            box = [int(item) for item in box]
-            k = min(
-                    max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.005), 20),
-                    200)
+            if True:
+                while True:
+                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
+                    if mask_.sum()==0: 
+                        first_box_add = True
+                        if len(boxes)>0:
+                            boxes=boxes[1:]
+                            box = boxes[0]
+                        else:
+                            det_bboxes = det_bboxes[1:]
+                            box = det_bboxes[0]
+                            #import pdb; pdb.set_trace()
+                    else: break
+
 
 
             #drop_tmp = mask.cpu().numpy()*mask_
@@ -87,10 +99,19 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
             #mask_ = mask_ - mask.numpy()*1e7
             kth = np.sort(mask_.reshape(-1))[::-1][k]
-            mask_ = mask_>kth
+            mask_add = mask_>kth
 
             mask = mask.cpu().numpy()
-            mask = (mask+mask_)>0
+            mask_next = (mask+mask_add)>0
+            if (mask_next-mask).sum()<50:
+                k=50
+                mask_add = mask_ - mask*1e7
+                kth = np.sort(mask_add.reshape(-1))[::-1][k]
+                mask_add = mask_>kth
+                mask_next = (mask+mask_add)>0
+            mask = mask_next
+
+
             if mask.sum()>max_perturb_num: break
 
             mask = torch.tensor(mask).to(w.device).float()
@@ -210,7 +231,7 @@ if __name__ == "__main__":
         print("img_path", img_path)
             
         img_path = os.path.join("images", img_path)
-        #img_path = os.path.join("images", "4053.png")
+        #img_path = os.path.join("images", "2765.png")
 
         success_attack = ig_attack(model_helpers, img_path, save_image_dir)
         if success_attack: success_count += 1
