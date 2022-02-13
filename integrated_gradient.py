@@ -65,8 +65,8 @@ class IntegratedGradients(VanillaGradient):
         grad_sum = np.zeros((H,W,C))
         image_diff = image_tensor - baseline
 
-        mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
-        return mask.sum(-1)
+        #mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
+        #return mask.sum(-1)
 
 
         for step, alpha in enumerate(np.linspace(0, 1, steps)):

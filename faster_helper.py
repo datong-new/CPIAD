@@ -132,7 +132,7 @@ class Helper():
                 img_metas, proposal_list, None, rescale=rescale)
         return det_scores[0][:, :-1] # background is the last class and exclude it
 
-    def loss_in_box(self, img, box, t=0.25):
+    def loss_in_box(self, img, box, t=0.3):
         assert self.img_metas is not None
         img = img.to(device)
         img = self.input_transforms(img).unsqueeze(0)
@@ -159,7 +159,7 @@ class Helper():
 
         return loss, object_num, det_bboxes
 
-    def attack_loss(self, img, t=0.25):
+    def attack_loss(self, img, t=0.3):
         assert self.img_metas is not None
         img = img.to(device)
         img = self.input_transforms(img).unsqueeze(0)
