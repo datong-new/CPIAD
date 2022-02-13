@@ -32,8 +32,10 @@ class VanillaGradient():
 
         loss = 0
         for helper in self.helpers:
-            #al, _ = helper.attack_loss(image_tensor)
-            al, _, _ = helper.loss_in_box(image_tensor, box=box)
+            if box is None:
+                al, _ = helper.attack_loss(image_tensor)
+            else:
+                al, _, _ = helper.loss_in_box(image_tensor, box=box)
             loss += al
         if loss==0:
             return np.zeros(image_tensor.shape)

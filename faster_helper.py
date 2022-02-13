@@ -147,16 +147,22 @@ class Helper():
         det_bboxes, det_scores = det_bboxes.reshape(-1, 4), det_scores.reshape(-1)
         mask = det_scores>t
         det_bboxes, det_scores = det_bboxes[mask], det_scores[mask]
-        loss, object_num = 0, 0
+        
+
+
+
+        loss, object_num, max_score = 0, 0, 0
         for i in range(det_scores.shape[0]):
             det_box, det_score = det_bboxes[i], det_scores[i]
             #import pdb; pdb.set_trace()
             #print("bbox_iou", bbox_iou(det_box, box))
 
-            if bbox_iou(det_box, box)>0.7:
+            if bbox_iou(det_box, box)>0.5:
                 loss += det_score
+                max_score = det_score if max_score < det_score else max_score
                 object_num += 1
 
+        #return max_score, object_num, det_bboxes
         return loss, object_num, det_bboxes
 
     def attack_loss(self, img, t=0.3):

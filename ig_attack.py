@@ -1,4 +1,5 @@
 import math
+import random
 import asyncio
 from mmdet.apis import init_detector, inference_detector
 import torch
@@ -49,41 +50,49 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     #exit(0)
     ##
 
-    add_interval = 100
+    add_interval = 60
     max_perturb_num = 500*500*0.015
-    max_iterations = 3500
+    max_iterations = add_interval*80
     first_box_add = True
     add_num = 0
+    baseline = img*0.9
 
 
     while t<max_iterations:
         if add_num%add_interval==0:
             if len(boxes)==0:
-                boxes = det_bboxes
+                box = det_bboxes[0]
+            else:
+                box = boxes[0]
             while True and len(boxes)>0:
-                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=boxes[0])
+                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
                 if mask_.sum()==0: 
                     first_box_add = True
                     boxes=boxes[1:]
                 else: break
-            if len(boxes)==0: k==0
-            else:
-                box = [int(item) for item in boxes[0]]
-                k = max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.004), 20)
 
-            tmp_mat = np.ones(mask_.shape) * 1e6
-            tmp_mat[box[1]:box[3], box[0]:box[2]] = 0
+            box = [int(item) for item in box]
+            k = min(
+                    max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.005), 20),
+                    200)
 
-            mask_ =  mask_-tmp_mat# zeros items outside box
 
-            mask_ = mask_ - mask.numpy()*1e7
+            #drop_tmp = mask.cpu().numpy()*mask_
+            #drop_th = np.sort(drop_tmp.reshape(-1))[k//2]
+            #mask[drop_tmp<drop_th]=0
+
+            #tmp_mat = np.ones(mask_.shape) * 1e6
+            #tmp_mat[box[1]:box[3], box[0]:box[2]] = 0
+            #mask_ =  mask_-tmp_mat# zeros items outside box
+
+            #mask_ = mask_ - mask.numpy()*1e7
             kth = np.sort(mask_.reshape(-1))[::-1][k]
             mask_ = mask_>kth
 
             mask = mask.cpu().numpy()
-            if (mask+mask_).sum()<max_perturb_num: 
-                mask = (mask+mask_)>0
-            else: break
+            mask = (mask+mask_)>0
+            if mask.sum()>max_perturb_num: break
+
             mask = torch.tensor(mask).to(w.device).float()
             print("mask.sum", mask.sum())
 
@@ -103,6 +112,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
             attack_loss += al
             object_num += on
+
+        add_interval = 20 if box_loss>10 else 60
 
         if min_object_num>object_num:
             min_object_num = object_num
@@ -129,8 +140,10 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             boxes=boxes[1:]
             add_num = 0
             continue
-
-        attack_loss.backward()
+        if box_loss==0 or len(boxes)==0:
+            attack_loss.backward()
+        else:
+            box_loss.backward()
 
         w = w - eps * w.grad.sign()
         w = img * (1-mask[:,:,None]) + w*mask[:,:,None]
@@ -160,7 +173,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
 
 if __name__ == "__main__":
-    random.seed(30)
+    #random.seed(30)
     parser = argparse.ArgumentParser()
     parser.add_argument('--patch_type', type=str, default="grid")
     parser.add_argument('--lines', type=int, default=3)
@@ -185,8 +198,10 @@ if __name__ == "__main__":
     save_image_dir = "images_ig"
     os.system("mkdir -p {}".format(save_image_dir))
 
+    images = os.listdir("images")
+    random.shuffle(images)
 
-    for i, img_path in enumerate(os.listdir("images")):
+    for i, img_path in enumerate(images):
         img_path_ps = os.listdir(save_image_dir)
         if img_path in img_path_ps:
             success_count+= 1
@@ -195,6 +210,7 @@ if __name__ == "__main__":
         print("img_path", img_path)
             
         img_path = os.path.join("images", img_path)
+        #img_path = os.path.join("images", "4053.png")
 
         success_attack = ig_attack(model_helpers, img_path, save_image_dir)
         if success_attack: success_count += 1
