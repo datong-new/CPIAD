@@ -60,12 +60,12 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     while t<max_iterations:
         if add_num%add_interval==0:
             #baseline = img + (torch.rand(img.shape, device=img.device)-0.5) * 10
-            baseline = img * torch.FloatTensor(img.shape, device=img.device).uniform_(0.8, 1.2)
+            baseline = img * torch.FloatTensor(img.shape, device=img.device).uniform_(0.9, 1.1)
 
             if len(boxes)==0:
                 box = det_bboxes[0]
                 #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device))
-                k=50
+                k=30
             else:
                 box = boxes[0]
                 box = [int(item) for item in box]
@@ -103,8 +103,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
             mask = mask.cpu().numpy()
             mask_next = (mask+mask_add)>0
-            if (mask_next-mask).sum()<50:
-                k=50
+            if (mask_next-mask).sum()<30:
+                k=30
                 mask_add = mask_ - mask*1e7
                 kth = np.sort(mask_add.reshape(-1))[::-1][k]
                 mask_add = mask_>kth
