@@ -55,12 +55,13 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     max_iterations = add_interval*80
     first_box_add = True
     add_num = 0
+    attack_loss = 0
 
 
     while t<max_iterations:
         if add_num%add_interval==0:
             #baseline = img + (torch.rand(img.shape, device=img.device)-0.5) * 10
-            baseline = img * torch.FloatTensor(img.shape, device=img.device).uniform_(0.9, 1.1)
+            baseline = adv_img * torch.FloatTensor(adv_img.shape).uniform_(0.9, 1.1).to(adv_img.device)
 
             if len(boxes)==0:
                 box = det_bboxes[0]
@@ -72,10 +73,17 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
                 k = min(
                         max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.005), 20),
                         200)
+            if attack_loss<1: 
+                k=30
+            elif attack_loss<10:
+                k=100
+            else: k=150
+
 
             if True:
                 while True:
-                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
+                    #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
+                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
                     if mask_.sum()==0: 
                         first_box_add = True
                         if len(boxes)>0:
@@ -134,7 +142,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             attack_loss += al
             object_num += on
 
-        add_interval = 20 if box_loss>10 else 60
+#        add_interval = 20 if box_loss>10 else 60
 
         if min_object_num>object_num:
             min_object_num = object_num
@@ -155,7 +163,10 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         if object_num==0:
             success_attack = True
             break
+        attack_loss.backward()
         add_num += 1
+
+        """
         if box_object_num==0 and len(boxes)>0: 
             first_box_add = True
             boxes=boxes[1:]
@@ -165,6 +176,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             attack_loss.backward()
         else:
             box_loss.backward()
+        """
 
         w = w - eps * w.grad.sign()
         w = img * (1-mask[:,:,None]) + w*mask[:,:,None]
@@ -199,6 +211,7 @@ if __name__ == "__main__":
     parser.add_argument('--patch_type', type=str, default="grid")
     parser.add_argument('--lines', type=int, default=3)
     parser.add_argument('--box_scale', type=float, default=1.0)
+    parser.add_argument('--save_image_dir', type=str, default=None)
     args = parser.parse_args()
     patch_type = args.patch_type
     lines = args.lines
@@ -210,13 +223,15 @@ if __name__ == "__main__":
     model_helpers = [faster_helper]
     success_count = 0
 
+
     if patch_type == "grid":
         save_image_dir = "images_p_grid_{}x{}_{}".format(lines, lines, box_scale)
     else:
         save_image_dir = "images_p_astroid_{}".format(box_scale)
 
+    if args.save_image_dir is not None:
+        save_image_dir = args.save_image_dir
 
-    save_image_dir = "images_ig"
     os.system("mkdir -p {}".format(save_image_dir))
 
     images = os.listdir("images")
