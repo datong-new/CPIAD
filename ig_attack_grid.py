@@ -32,7 +32,7 @@ def create_adv_baseline(img, helpers, iterations=10, eps=1):
         for helper in model_helpers:
             al, on = helper.attack_loss(img)
             attack_loss += al
-        print("attck_loss", attack_loss)
+        #print("attck_loss", attack_loss)
         if attack_loss<=0: break
         attack_loss.backward()
         m = 0.8 * m + 0.2 * img.grad
@@ -46,187 +46,135 @@ def get_k(attack_loss):
     elif attack_loss<5: 
         k=50
     elif attack_loss<10:
+        k=100
+    else: k=200
+
+    return k
+
+def get_k_by_num(num):
+    if num<10:
+        k = 30
+    elif num<20:
+        k=100
+    else:
         k=200
-    else: k=250
     return k
 
 
 def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     img = cv2.imread(img_path)
-    img = torch.from_numpy(img).float()
+    img = torch.from_numpy(img).float().cuda()
     IG = IntegratedGradients(model_helpers)
 
     t, max_iterations = 0, 1000
     eps = 1
-    w = torch.zeros(img.shape).float()+127
+    w = torch.zeros(img.shape, device='cuda').float()+127
     w.requires_grad = True
     success_attack = False
     min_object_num = 1e8
+    min_mask_sum = 1e8
     min_img = img.clone()
     adv_img = img.clone()
 
     baseline = None
-    mask = torch.zeros((min_img.shape[:2]))
+    mask = np.zeros((min_img.shape[:2]))
 
     baseline = torch.ones_like(img) * torch.min(img).detach().cpu()
     boxes = get_faster_boxes(img_path)
 
-    mask_in_boxes = torch.zeros(img.shape[:-1])
+    mask_in_boxes = np.zeros(img.shape[:-1])
     for box in boxes:
         box = [int(item) for item in box]
         mask_in_boxes[box[1]:box[3], box[0]:box[2]] = 1
 
-
-    ##debug
-    #for box in boxes:
-    #    model_helpers[0].loss_in_box(img, box)
-    #exit(0)
-    ##
-
     add_interval = 60
     max_perturb_num = 500*500*0.02
-    max_iterations = add_interval*80
+    max_iterations = 3000
     first_box_add = True
     add_num = 0
     attack_loss = 1000
     box_loss = 0
+    object_num = 1000
 
-    m = 0
+    def get_topk(mask_, k=20):
+        kth = np.sort(mask_.reshape(-1))[::-1][k]
+        mask = mask_>kth
+        return mask
+
+    def drop_mask(mask, k=100):
+        mask_reshape = mask.reshape(-1)
+
+        kth = np.sort(mask_reshape[mask_reshape!=0])[k-1]
+        mask = (mask>=kth) * (mask!=0)
+        return mask
+
+    def make_grid(mask, size=3, stride=2):
+        mask_copy = mask.copy()
+        for i in range(1, size//2+1):
+            mask_copy[i:, :] += mask[:-i, :]
+            mask_copy[:-i, :] += mask[i:, :]
+
+            mask_copy[:, i:] += mask[:, :-i]
+            mask_copy[:, :-i] += mask[:, i:]
+        return mask_copy
 
 
-
+    #baseline = create_adv_baseline(adv_img, model_helpers)
     while t<max_iterations:
-        if add_num%add_interval==0:
-            #baseline = img + (torch.rand(img.shape, device=img.device)-0.5) * 10
-            #baseline = adv_img * torch.FloatTensor(adv_img.shape).uniform_(0.9, 1.1).to(adv_img.device)
+        if t%add_interval==0 or object_num<2:
             baseline = create_adv_baseline(adv_img, model_helpers)
-
-            if len(boxes)==0:
-                box = det_bboxes[0]
-                #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device))
-                #k=get_k(attack_loss)
-                k=get_k(box_loss)
-            else:
-                box = boxes[0]
-                box = [int(item) for item in box]
-                k = min(
-                        max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.003), 20),
-                        200)
-                k = get_k(box_loss)
-
-            """
-            """
+            mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
 
 
-            if True:
-                while True:
-                    #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), box=box)
-                    #mask_ = IG.get_grad_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), box=box)
-                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
-                    if mask_.sum()==0: 
-                        first_box_add = True
-                        if len(boxes)>0:
-                            boxes=boxes[1:]
-                        else:
-                            det_bboxes = det_bboxes[1:]
+            if object_num<2:
+                mask = drop_mask(mask*mask_, k=50)
+            elif object_num>5:
+                #k = get_k(attack_loss)
+                k = get_k_by_num(object_num)
+                mask = mask + get_topk(mask_*mask_in_boxes, k=k)
 
-                        box = boxes[0] if len(boxes)>0 else det_bboxes[0]
-                    else: break
-
-
-
-            #drop_tmp = mask.cpu().numpy()*mask_
-            #drop_th = np.sort(drop_tmp.reshape(-1))[k//2]
-            #mask[drop_tmp<drop_th]=0
-
-            #tmp_mat = np.ones(mask_.shape) * 1e6
-            #tmp_mat[box[1]:box[3], box[0]:box[2]] = 0
-            #mask_ =  mask_-tmp_mat# zeros items outside box
-
-            mask_ = mask_ * mask_in_boxes.numpy()
-            mask_ = mask_ - mask.numpy()*1e7
-
-            kth = np.sort(mask_.reshape(-1))[::-1][k]
-            mask_add = mask_>kth
-
-            mask = mask.cpu().numpy()
-            mask_next = (mask+mask_add)>0
-            if (mask_next-mask).sum()<30:
-                k=30
-                mask_add = mask_ - mask*1e7
-                kth = np.sort(mask_add.reshape(-1))[::-1][k]
-                mask_add = mask_>kth
-                mask_next = (mask+mask_add)>0
-            mask = mask_next
-
-
-            if mask.sum()>max_perturb_num: break
-
-            mask = torch.tensor(mask).to(w.device).float()
-            print("mask.sum", mask.sum())
+            #mask_grid = make_grid(mask)
+            mask_grid = mask
+            mask_grid = torch.tensor(mask_grid).to(w.device).float()
+            print("mask.sum()", mask_grid.sum())
 
         t+=1
-        adv_img = img * (1-mask[:,:,None]) + w*mask[:,:,None]
+        adv_img = img * (1-mask_grid[:,:,None]) + w*mask_grid[:,:,None]
         adv_img = adv_img.to(device)
         attack_loss, object_num = 0, 0
         box_loss, box_object_num = 0, 0
         for helper in model_helpers:
             al, on = helper.attack_loss(adv_img)
 
-            if len(boxes)>0:
-                box_al, box_on, det_bboxes = helper.loss_in_box(adv_img, boxes[0])
-            else:
-                box_al, box_on, det_bboxes = helper.loss_in_box(adv_img, det_bboxes[0])
-
-            box_loss += box_al
-            box_object_num += box_on
-
             attack_loss += al
             object_num += on
 
-#        add_interval = 20 if box_loss>10 else 60
-
-        if min_object_num>object_num:
-            min_object_num = object_num
-            min_img = adv_img.clone()
-
         if t%5==1: 
-            print("t: {}, attack_loss:{}, object_nums:{}, "
-                    "len(boxes):{}, box_loss:{}, box_object_num:{}".format(
+            print("t: {}, attack_loss:{}, object_nums:{}, success_attack:{},"
+                    "min_mask_sum:{}".format(
                 t,
                 attack_loss, 
                 object_num,
-                len(boxes),
-                box_loss,
-                box_object_num
+                success_attack, 
+                min_mask_sum
                 ))
+        if min_object_num>object_num or (min_object_num==object_num and min_mask_sum>mask_grid.sum()):
+            min_object_num=object_num
+            min_img = adv_img.clone()
+            if min_object_num==object_num and min_mask_sum>mask_grid.sum():
+                min_mask_sum = mask_grid.sum()
 
 
         if object_num==0:
             success_attack = True
             break
-        #attack_loss.backward()
-        add_num += 1
-
-        if box_object_num==0 and len(boxes)>0: 
-            first_box_add = True
-            boxes=boxes[1:]
-            add_num = 0
-            continue
         attack_loss.backward()
-        """
-        if box_loss==0 or len(boxes)==0:
-            attack_loss.backward()
-        else:
-            box_loss.backward()
-        """
 
         #m = 0.5 * m + 0.5 * w.grad
         m = w.grad
 
         w = w - eps * m.sign()
-        w = img * (1-mask[:,:,None]) + w*mask[:,:,None]
-        w = w.detach().to(mask.device)
+        w = w.detach().to(adv_img.device)
         w.requires_grad = True
 
     try: min_img = min_img.detach().cpu().numpy()
