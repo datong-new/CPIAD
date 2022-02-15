@@ -23,6 +23,31 @@ from bboxes import get_faster_boxes
 def create_baseline(img, std=5):
     return img + std
 
+def create_adv_baseline(img, helpers, iterations=1000, eps=1):
+    img = img.clone().detach()
+    for i in range(iterations):
+        img.requires_grad = True
+        attack_loss = 0
+        for helper in model_helpers:
+            al, on = helper.attack_loss(img)
+            attack_loss += al
+        print("attck_loss", attack_loss)
+        if attack_loss<=0: break
+        attack_loss.backward()
+        img = img-eps*torch.sign(img.grad)
+        img = img.detach()
+    return img
+
+def get_k(attack_loss):
+    if attack_loss<1: 
+        k=30
+    elif attack_loss<5: 
+        k=50
+    elif attack_loss<10:
+        k=200
+    else: k=250
+    return k
+
 
 def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     img = cv2.imread(img_path)
@@ -44,6 +69,12 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     baseline = torch.ones_like(img) * torch.min(img).detach().cpu()
     boxes = get_faster_boxes(img_path)
 
+    mask_in_boxes = torch.zeros(img.shape[:-1])
+    for box in boxes:
+        box = [int(item) for item in box]
+        mask_in_boxes[box[1]:box[3], box[0]:box[2]] = 1
+
+
     ##debug
     #for box in boxes:
     #    model_helpers[0].loss_in_box(img, box)
@@ -51,48 +82,51 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     ##
 
     add_interval = 60
-    max_perturb_num = 500*500*0.015
+    max_perturb_num = 500*500*0.02
     max_iterations = add_interval*80
     first_box_add = True
     add_num = 0
-    attack_loss = 0
+    attack_loss = 1000
+    box_loss = 0
+
 
 
     while t<max_iterations:
         if add_num%add_interval==0:
             #baseline = img + (torch.rand(img.shape, device=img.device)-0.5) * 10
-            baseline = adv_img * torch.FloatTensor(adv_img.shape).uniform_(0.9, 1.1).to(adv_img.device)
+            #baseline = adv_img * torch.FloatTensor(adv_img.shape).uniform_(0.9, 1.1).to(adv_img.device)
+            baseline = create_adv_baseline(adv_img, model_helpers)
 
             if len(boxes)==0:
                 box = det_bboxes[0]
                 #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device))
-                k=30
+                #k=get_k(attack_loss)
+                k=get_k(box_loss)
             else:
                 box = boxes[0]
                 box = [int(item) for item in box]
                 k = min(
-                        max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.005), 20),
+                        max(int((box[2]-box[0]) * (box[3]-box[1]) * 0.003), 20),
                         200)
-            if attack_loss<1: 
-                k=30
-            elif attack_loss<10:
-                k=100
-            else: k=150
+                k = get_k(box_loss)
+
+            """
+            """
 
 
             if True:
                 while True:
-                    #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.to(adv_img.device), box=box)
-                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
+                    mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), box=box)
+                    #mask_ = IG.get_grad_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), box=box)
+                    #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
                     if mask_.sum()==0: 
                         first_box_add = True
                         if len(boxes)>0:
                             boxes=boxes[1:]
-                            box = boxes[0]
                         else:
                             det_bboxes = det_bboxes[1:]
-                            box = det_bboxes[0]
-                            #import pdb; pdb.set_trace()
+
+                        box = boxes[0] if len(boxes)>0 else det_bboxes[0]
                     else: break
 
 
@@ -105,7 +139,9 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             #tmp_mat[box[1]:box[3], box[0]:box[2]] = 0
             #mask_ =  mask_-tmp_mat# zeros items outside box
 
-            #mask_ = mask_ - mask.numpy()*1e7
+            mask_ = mask_ * mask_in_boxes.numpy()
+            mask_ = mask_ - mask.numpy()*1e7
+
             kth = np.sort(mask_.reshape(-1))[::-1][k]
             mask_add = mask_>kth
 
@@ -135,9 +171,11 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
             if len(boxes)>0:
                 box_al, box_on, det_bboxes = helper.loss_in_box(adv_img, boxes[0])
+            else:
+                box_al, box_on, det_bboxes = helper.loss_in_box(adv_img, det_bboxes[0])
 
-                box_loss += box_al
-                box_object_num += box_on
+            box_loss += box_al
+            box_object_num += box_on
 
             attack_loss += al
             object_num += on
@@ -163,10 +201,9 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         if object_num==0:
             success_attack = True
             break
-        attack_loss.backward()
+        #attack_loss.backward()
         add_num += 1
 
-        """
         if box_object_num==0 and len(boxes)>0: 
             first_box_add = True
             boxes=boxes[1:]
@@ -176,6 +213,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             attack_loss.backward()
         else:
             box_loss.backward()
+        """
         """
 
         w = w - eps * w.grad.sign()

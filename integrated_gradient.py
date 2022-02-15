@@ -43,7 +43,13 @@ class VanillaGradient():
         loss.backward()
         return image_tensor.grad.detach().cpu().numpy()
 
-    def get_smoothed_mask(self, image_tensor, target_class=None, samples=25, std=0.15, process=lambda x: x**2):
+    def get_smoothed_mask(self,
+            image_tensor, 
+            target_class=None,
+            samples=25,
+            std=0.15,
+            process=lambda x:x):
+
         std = std * (torch.max(image_tensor) - torch.min(image_tensor)).detach().cpu().numpy()
 
         batch, channels, width, height = image_tensor.size()
@@ -53,6 +59,15 @@ class VanillaGradient():
             noise_image = image_tensor + noise
             grad_sum += process(self.get_mask(noise_image, target_class))
         return grad_sum / samples
+
+    def get_grad_mask(self, image_tensor, samples=15, std=5, process=lambda x: x**2, baseline=None, box=None):
+        grad_sum = np.zeros(image_tensor.shape)
+        for sample in range(samples):
+            noise = torch.empty(image_tensor.size()).normal_(0, std).to(image_tensor.device)
+            noise_image = image_tensor + noise
+            grad_sum += process(super(IntegratedGradients, self).get_mask(noise_image, box=box))
+        return grad_sum.sum(-1)
+
 
     @staticmethod
     def apply_region(mask, region):
