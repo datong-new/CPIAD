@@ -165,7 +165,7 @@ class Helper():
         #return max_score, object_num, det_bboxes
         return loss, object_num, det_bboxes
 
-    def attack_loss(self, img, t=0.2):
+    def attack_loss(self, img, t=0.3):
         assert self.img_metas is not None
         img = img.to(device)
         img = self.input_transforms(img).unsqueeze(0)

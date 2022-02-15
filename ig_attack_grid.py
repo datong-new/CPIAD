@@ -52,12 +52,12 @@ def get_k(attack_loss):
     return k
 
 def get_k_by_num(num):
-    if num<10:
+    if num<5:
         k = 30
-    elif num<20:
+    elif num<10:
         k=100
     else:
-        k=200
+        k=250
     return k
 
 
@@ -70,7 +70,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     eps = 1
     w = torch.zeros(img.shape, device='cuda').float()+127
     w.requires_grad = True
-    success_attack = False
+    success_attack = 0
     min_object_num = 1e8
     min_mask_sum = 1e8
     min_img = img.clone()
@@ -121,17 +121,18 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
     #baseline = create_adv_baseline(adv_img, model_helpers)
     while t<max_iterations:
-        if t%add_interval==0 or object_num<2:
+        if add_num%add_interval==0:
+
             baseline = create_adv_baseline(adv_img, model_helpers)
             mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
 
+            if object_num<1:
+                perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
+                mask = drop_mask(mask*perturbation, k=int(mask.sum()*0.25))
 
-            if object_num<2:
-                mask = drop_mask(mask*mask_, k=50)
-            elif object_num>5:
-                #k = get_k(attack_loss)
-                k = get_k_by_num(object_num)
-                mask = mask + get_topk(mask_*mask_in_boxes, k=k)
+            #k = get_k(attack_loss)
+            k = get_k_by_num(object_num)
+            mask = mask + get_topk(mask_*mask_in_boxes, k=k)
 
             #mask_grid = make_grid(mask)
             mask_grid = mask
@@ -139,35 +140,42 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             print("mask.sum()", mask_grid.sum())
 
         t+=1
+
         adv_img = img * (1-mask_grid[:,:,None]) + w*mask_grid[:,:,None]
         adv_img = adv_img.to(device)
         attack_loss, object_num = 0, 0
         box_loss, box_object_num = 0, 0
         for helper in model_helpers:
-            al, on = helper.attack_loss(adv_img)
+            al, on = helper.attack_loss(adv_img, t=0.3)
 
             attack_loss += al
             object_num += on
 
         if t%5==1: 
             print("t: {}, attack_loss:{}, object_nums:{}, success_attack:{},"
-                    "min_mask_sum:{}".format(
+                    "min_mask_sum:{}, min_object_num:{} ".format(
                 t,
                 attack_loss, 
                 object_num,
                 success_attack, 
-                min_mask_sum
+                min_mask_sum, 
+                min_object_num
                 ))
-        if min_object_num>object_num or (min_object_num==object_num and min_mask_sum>mask_grid.sum()):
+        if min_object_num>object_num:
             min_object_num=object_num
             min_img = adv_img.clone()
-            if min_object_num==object_num and min_mask_sum>mask_grid.sum():
-                min_mask_sum = mask_grid.sum()
+            min_mask_sum = mask_grid.sum()
 
+        if  min_object_num==object_num and min_mask_sum>mask_grid.sum():
+            min_mask_sum = mask_grid.sum()
+            min_object_num=object_num
+            min_img = adv_img.clone()
 
+        add_num += 1
         if object_num==0:
-            success_attack = True
-            break
+            success_attack += 1
+            add_num = 0
+            if success_attack>2: break
         attack_loss.backward()
 
         #m = 0.5 * m + 0.5 * w.grad
@@ -175,6 +183,9 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
         w = w - eps * m.sign()
         w = w.detach().to(adv_img.device)
+
+        tmp_img = torch.clamp(img+w, 0, 255)
+        w = tmp_img - img
         w.requires_grad = True
 
     try: min_img = min_img.detach().cpu().numpy()
