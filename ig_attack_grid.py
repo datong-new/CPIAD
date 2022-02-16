@@ -139,7 +139,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     last_mask_list = []
     last_object_num = []
     while t<max_iterations:
-        if add_num%add_interval==0 or object_num<3:
+        if add_num%add_interval==0:
 
             baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
             #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
@@ -147,9 +147,14 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             if object_num<1:
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
+                last_mask_list += [mask]
+                last_object_num += [object_num]
+
             elif object_num<3:
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.1))
+                last_mask_list += [mask]
+                last_object_num += [object_num]
 
 
             #k = get_k(attack_loss)
@@ -174,6 +179,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
             attack_loss += al
             object_num += on
+        add_num += 1
 
         if t%5==1: 
             print("t: {}, attack_loss:{}, object_nums:{}, success_attack:{},"
@@ -190,18 +196,20 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             min_img = adv_img.clone()
             min_mask_sum = mask_grid.sum()
             add_num = 0
-            last_mask_list += [mask]
-            last_object_num += [object_num]
+
+        print("add_num", add_num)
 
 
-        if add_num>50:
+        if add_num>30:
             mask = last_mask_list[-1]
-            if len(last_mask_list)>1 and object_num>last_object_num[-1]:
-                last_mask_list = last_mask_list[:-1]
-                last_object_num = last_object_num[:-1]
+            #if len(last_mask_list)>1 and object_num>last_object_num[-1]:
+            #if len(last_mask_list)>1 and last_object_num[-1]<20:
+
+            last_mask_list = last_mask_list[:-1]
+            last_object_num = last_object_num[:-1]
+
             add_num = 0
 
-        add_num += 1
         if object_num==0:
             success_attack += 1
             add_num = 0
@@ -274,7 +282,7 @@ if __name__ == "__main__":
 
     os.system("mkdir -p {}".format(save_image_dir))
 
-    images = os.listdir("images")
+    images = os.listdir("images")[:50]
     random.shuffle(images)
 
     for i, img_path in enumerate(images):
