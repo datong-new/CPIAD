@@ -118,14 +118,12 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             tmp[:, i:] += perturbation[:, :-i]
             tmp[:, :-i] += perturbation[:, i:]
         """
-        tmp = tmp * mask
+        tmp = tmp.reshape(-1)[(mask>0).reshape(-1)]
+        tmp = tmp + np.random.uniform(1, 1e-1, size=tmp.shape)
 
+        kth = np.sort(tmp)[k-1]
 
-        tmp_reshape = tmp.reshape(-1)
-        kth = np.sort(tmp_reshape[tmp_reshape!=0])[k-1]
-        noise = np.random.uniform(0, 1e-1, size=tmp.shape)
-
-        return ((tmp+noise)>=kth) * (tmp!=0)
+        return (perturbation>=kth) * mask
 
     def make_grid(mask, size=3, stride=2):
         mask_copy = mask.copy()
@@ -148,7 +146,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
                 mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
                 #k = get_k(attack_loss)
                 k = get_k_by_num(object_num)
-                mask = mask + get_topk(mask_*mask_in_boxes, k=k)
+                mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
 
                 size = 3
                 #mask = mask + get_topk(mask_*mask_in_boxes, k=k//(size*4-3))
