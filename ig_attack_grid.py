@@ -145,11 +145,11 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     while t<max_iterations:
         if add_num%add_interval==0:
 
-            baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
+            #baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
             #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
 
-            #perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
-            perturbation = mask_.copy()
+            perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
+            #perturbation = mask_.copy()
             if object_num<1:
                 mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
                 last_mask_list += [mask]
@@ -203,7 +203,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
 
 
-        if add_num>30:
+        if add_num>30 and len(last_mask_list)>0:
             mask = last_mask_list[-1]
             #if len(last_mask_list)>1 and object_num>last_object_num[-1]:
             #if len(last_mask_list)>1 and last_object_num[-1]<20:
