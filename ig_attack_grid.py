@@ -23,9 +23,11 @@ from bboxes import get_faster_boxes
 def create_baseline(img, std=5):
     return img + std
 
-def create_adv_baseline(img, helpers, iterations=10, eps=1):
-    img = img.clone().detach()
+def create_adv_baseline(ori_img, helpers, mask_in_boxes, iterations=10, eps=1):
+    img = ori_img.clone().detach()
     m = 0
+    grad_acc = np.zeros(img.shape[:-1])
+
     for i in range(iterations):
         img.requires_grad = True
         attack_loss = 0
@@ -35,10 +37,12 @@ def create_adv_baseline(img, helpers, iterations=10, eps=1):
         #print("attck_loss", attack_loss)
         if attack_loss<=0: break
         attack_loss.backward()
-        m = 0.8 * m + 0.2 * img.grad
-        img = img-eps*torch.sign(m)
+        m = img.grad
+        #m = 0.8 * m + 0.2 * img.grad
+        grad_acc = img.grad.cpu().numpy().sum(-1)
+        img = img-eps*torch.sign(m)*torch.from_numpy(mask_in_boxes).to(img.device)[:,:,None]
         img = img.detach()
-    return img
+    return img, grad_acc
 
 def get_k(attack_loss):
     if attack_loss<1: 
@@ -52,10 +56,12 @@ def get_k(attack_loss):
     return k
 
 def get_k_by_num(num):
-    if num<5:
-        k = 30
+    if num<2:
+        k=50
+    elif num<5:
+        k = 100
     elif num<10:
-        k=100
+        k=200
     else:
         k=250
     return k
@@ -89,7 +95,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
     add_interval = 60
     max_perturb_num = 500*500*0.02
-    max_iterations = 3000
+    max_iterations = 1000
     first_box_add = True
     add_num = 0
     attack_loss = 1000
@@ -97,45 +103,63 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     object_num = 1000
 
     def get_topk(mask_, k=20):
-        kth = np.sort(mask_.reshape(-1))[::-1][k]
-        mask = mask_>kth
+        kth = np.sort(mask_.reshape(-1))[::-1][k-1]
+        mask = mask_>=kth
         return mask
 
-    def drop_mask(mask, k=100):
-        mask_reshape = mask.reshape(-1)
+    def drop_mask(mask, perturbation, k=100, size=3):
+        tmp = perturbation.copy()
+        for i in range(1, size//2+1):
+            tmp[i:, :] += perturbation[:-i, :]
+            tmp[:-i, :] += perturbation[i:, :]
+            tmp[:, i:] += perturbation[:, :-i]
+            tmp[:, :-i] += perturbation[:, i:]
 
-        kth = np.sort(mask_reshape[mask_reshape!=0])[k-1]
-        mask = (mask>=kth) * (mask!=0)
-        return mask
+
+        tmp = tmp * mask
+
+
+        tmp_reshape = tmp.reshape(-1)
+        kth = np.sort(tmp_reshape[tmp_reshape!=0])[k-1]
+
+        return (tmp>=kth) * (tmp!=0)
 
     def make_grid(mask, size=3, stride=2):
         mask_copy = mask.copy()
         for i in range(1, size//2+1):
             mask_copy[i:, :] += mask[:-i, :]
             mask_copy[:-i, :] += mask[i:, :]
-
             mask_copy[:, i:] += mask[:, :-i]
             mask_copy[:, :-i] += mask[:, i:]
         return mask_copy
 
 
     #baseline = create_adv_baseline(adv_img, model_helpers)
+    mask = mask_in_boxes.copy()
+    last_mask_list = []
+    last_object_num = []
     while t<max_iterations:
-        if add_num%add_interval==0:
+        if add_num%add_interval==0 or object_num<3:
 
-            baseline = create_adv_baseline(adv_img, model_helpers)
-            mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
+            baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
+            #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
 
             if object_num<1:
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
-                mask = drop_mask(mask*perturbation, k=int(mask.sum()*0.25))
+                mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
+            elif object_num<3:
+                perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
+                mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.1))
+
 
             #k = get_k(attack_loss)
             k = get_k_by_num(object_num)
-            mask = mask + get_topk(mask_*mask_in_boxes, k=k)
+            size = 3
+            #mask = mask + get_topk(mask_*mask_in_boxes, k=k//(size*4-3))
 
-            #mask_grid = make_grid(mask)
+            #mask_grid = make_grid(mask, size=size)
             mask_grid = mask
+
             mask_grid = torch.tensor(mask_grid).to(w.device).float()
             print("mask.sum()", mask_grid.sum())
 
@@ -161,21 +185,27 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
                 min_mask_sum, 
                 min_object_num
                 ))
-        if min_object_num>object_num:
+        if min_object_num>object_num or (min_object_num==object_num and min_mask_sum>mask_grid.sum()):
             min_object_num=object_num
             min_img = adv_img.clone()
             min_mask_sum = mask_grid.sum()
+            add_num = 0
+            last_mask_list += [mask]
+            last_object_num += [object_num]
 
-        if  min_object_num==object_num and min_mask_sum>mask_grid.sum():
-            min_mask_sum = mask_grid.sum()
-            min_object_num=object_num
-            min_img = adv_img.clone()
+
+        if add_num>50:
+            mask = last_mask_list[-1]
+            if len(last_mask_list)>1 and object_num>last_object_num[-1]:
+                last_mask_list = last_mask_list[:-1]
+                last_object_num = last_object_num[:-1]
+            add_num = 0
 
         add_num += 1
         if object_num==0:
             success_attack += 1
             add_num = 0
-            if success_attack>2: break
+            #if success_attack>2: break
         attack_loss.backward()
 
         #m = 0.5 * m + 0.5 * w.grad
@@ -191,11 +221,16 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     try: min_img = min_img.detach().cpu().numpy()
     except Exception: min_img = min_img.numpy()
 
-    if success_attack:
-        cv2.imwrite(save_image_dir+"/{}".format(img_path.split("/")[-1]), min_img)
-    else:
-        cv2.imwrite(save_image_dir+"/{}_fail.png".format(img_path.split("/")[-1].split(".")[0]), min_img)
-    return success_attack
+    save_path = os.path.join(
+            save_image_dir, 
+            "{}_{}_{}.png".format(
+                img_path.split("/")[-1].replace("png", ""),
+                success_attack, 
+                min_mask_sum
+                ))
+    cv2.imwrite(save_path, min_img)
+
+    return success_attack>0
 
 
 
