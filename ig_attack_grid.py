@@ -109,11 +109,15 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
     def drop_mask(mask, perturbation, k=100, size=3):
         tmp = perturbation.copy()
+
+        """
         for i in range(1, size//2+1):
             tmp[i:, :] += perturbation[:-i, :]
             tmp[:-i, :] += perturbation[i:, :]
             tmp[:, i:] += perturbation[:, :-i]
             tmp[:, :-i] += perturbation[:, i:]
+        """
+
 
 
         tmp = tmp * mask
@@ -144,14 +148,14 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
             #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
 
+            #perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
+            perturbation = mask_.copy()
             if object_num<1:
-                perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
                 last_mask_list += [mask]
                 last_object_num += [object_num]
 
             elif object_num<3:
-                perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.1))
                 last_mask_list += [mask]
                 last_object_num += [object_num]
@@ -197,7 +201,6 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             min_mask_sum = mask_grid.sum()
             add_num = 0
 
-        print("add_num", add_num)
 
 
         if add_num>30:
@@ -294,7 +297,7 @@ if __name__ == "__main__":
         print("img_path", img_path)
             
         img_path = os.path.join("images", img_path)
-        #img_path = os.path.join("images", "2765.png")
+        #img_path = os.path.join("images", "1198.png")
 
         success_attack = ig_attack(model_helpers, img_path, save_image_dir)
         if success_attack: success_count += 1

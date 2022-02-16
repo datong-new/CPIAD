@@ -174,8 +174,10 @@ class Helper():
         objects_num = (scores>0.3).sum().item()
         
         mask = scores>t
-        scores = scores * mask
-        thresh_loss = scores.sum()
+        scores_ = scores * mask
+        thresh_loss = scores_.sum() 
+        if thresh_loss <= 0:
+            return scores.sum(), objects_num
 
         return thresh_loss, objects_num
 
