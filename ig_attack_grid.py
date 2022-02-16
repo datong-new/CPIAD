@@ -85,7 +85,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     baseline = None
     mask = np.zeros((min_img.shape[:2]))
 
-    baseline = torch.ones_like(img) * torch.min(img).detach().cpu()
+    #baseline = torch.ones_like(img) * torch.min(img).detach().cpu()
+    baseline = img.clone()
     boxes = get_faster_boxes(img_path)
 
     mask_in_boxes = np.zeros(img.shape[:-1])
@@ -117,16 +118,14 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             tmp[:, i:] += perturbation[:, :-i]
             tmp[:, :-i] += perturbation[:, i:]
         """
-
-
-
         tmp = tmp * mask
 
 
         tmp_reshape = tmp.reshape(-1)
         kth = np.sort(tmp_reshape[tmp_reshape!=0])[k-1]
+        noise = np.random.uniform(0, 1e-1, size=tmp.shape)
 
-        return (tmp>=kth) * (tmp!=0)
+        return ((tmp+noise)>=kth) * (tmp!=0)
 
     def make_grid(mask, size=3, stride=2):
         mask_copy = mask.copy()
@@ -138,33 +137,34 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         return mask_copy
 
 
-    #baseline = create_adv_baseline(adv_img, model_helpers)
+    baseline, _ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes)
     mask = mask_in_boxes.copy()
     last_mask_list = []
     last_object_num = []
     while t<max_iterations:
         if add_num%add_interval==0:
+            if object_num>0:
+                baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
+                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
+                #k = get_k(attack_loss)
+                k = get_k_by_num(object_num)
+                mask = mask + get_topk(mask_*mask_in_boxes, k=k)
 
-            #baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
-            #mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
+                size = 3
+                #mask = mask + get_topk(mask_*mask_in_boxes, k=k//(size*4-3))
+            else:
+                perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
+                if object_num<1:
+                    mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
+                    last_mask_list += [mask]
+                    last_object_num += [object_num]
+                """
+                elif object_num<3:
+                    mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.1))
+                    last_mask_list += [mask]
+                    last_object_num += [object_num]
+                """
 
-            perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
-            #perturbation = mask_.copy()
-            if object_num<1:
-                mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
-                last_mask_list += [mask]
-                last_object_num += [object_num]
-
-            elif object_num<3:
-                mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.1))
-                last_mask_list += [mask]
-                last_object_num += [object_num]
-
-
-            #k = get_k(attack_loss)
-            k = get_k_by_num(object_num)
-            size = 3
-            #mask = mask + get_topk(mask_*mask_in_boxes, k=k//(size*4-3))
 
             #mask_grid = make_grid(mask, size=size)
             mask_grid = mask
@@ -174,7 +174,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
         t+=1
 
-        adv_img = img * (1-mask_grid[:,:,None]) + w*mask_grid[:,:,None]
+        adv_img = img  + w*mask_grid[:,:,None]
+        adv_img = torch.clamp(adv_img, 0, 255)
         adv_img = adv_img.to(device)
         attack_loss, object_num = 0, 0
         box_loss, box_object_num = 0, 0
@@ -203,13 +204,13 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
 
 
-        if add_num>30 and len(last_mask_list)>0:
-            mask = last_mask_list[-1]
+        if add_num>50 and len(last_mask_list)>0:
+            #mask = last_mask_list[-1]
             #if len(last_mask_list)>1 and object_num>last_object_num[-1]:
             #if len(last_mask_list)>1 and last_object_num[-1]<20:
 
-            last_mask_list = last_mask_list[:-1]
-            last_object_num = last_object_num[:-1]
+            #last_mask_list = last_mask_list[:-1]
+            #last_object_num = last_object_num[:-1]
 
             add_num = 0
 
@@ -222,11 +223,11 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         #m = 0.5 * m + 0.5 * w.grad
         m = w.grad
 
-        w = w - eps * m.sign()
+        w = w - eps * m.sign() * mask_grid[:,:,None]
         w = w.detach().to(adv_img.device)
 
-        tmp_img = torch.clamp(img+w, 0, 255)
-        w = tmp_img - img
+        #tmp_img = torch.clamp(img+w, 0, 255)
+        #w = tmp_img - img
         w.requires_grad = True
 
     try: min_img = min_img.detach().cpu().numpy()
@@ -297,7 +298,7 @@ if __name__ == "__main__":
         print("img_path", img_path)
             
         img_path = os.path.join("images", img_path)
-        #img_path = os.path.join("images", "1198.png")
+        #img_path = os.path.join("images", "4412.png")
 
         success_attack = ig_attack(model_helpers, img_path, save_image_dir)
         if success_attack: success_count += 1
