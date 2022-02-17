@@ -50,8 +50,8 @@ def get_k(attack_loss):
     elif attack_loss<5: 
         k=50
     elif attack_loss<10:
-        k=100
-    else: k=200
+        k=200
+    else: k=10000
 
     return k
 
@@ -83,7 +83,6 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     adv_img = img.clone()
 
     baseline = None
-    mask = np.zeros((min_img.shape[:2]))
 
     #baseline = torch.ones_like(img) * torch.min(img).detach().cpu()
     baseline = img.clone()
@@ -111,19 +110,18 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     def drop_mask(mask, perturbation, k=100, size=3):
         tmp = perturbation.copy()
 
-        """
         for i in range(1, size//2+1):
             tmp[i:, :] += perturbation[:-i, :]
             tmp[:-i, :] += perturbation[i:, :]
             tmp[:, i:] += perturbation[:, :-i]
             tmp[:, :-i] += perturbation[:, i:]
-        """
-        tmp = tmp.reshape(-1)[(mask>0).reshape(-1)]
-        tmp = tmp + np.random.uniform(1, 1e-1, size=tmp.shape)
 
-        kth = np.sort(tmp)[k-1]
+        tmp_ = tmp.reshape(-1)[(mask>0).reshape(-1)]
+        tmp_ = tmp_ + np.random.uniform(1, 1e-1, size=tmp_.shape)
 
-        return (perturbation>=kth) * mask
+        kth = np.sort(tmp_)[k-1]
+
+        return (tmp>=kth) * mask
 
     def make_grid(mask, size=3, stride=2):
         mask_copy = mask.copy()
@@ -137,6 +135,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
     baseline, _ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes)
     mask = mask_in_boxes.copy()
+    mask = np.zeros((min_img.shape[:2]))
     last_mask_list = []
     last_object_num = []
     while t<max_iterations:
@@ -148,7 +147,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
                 k = get_k_by_num(object_num)
                 mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
 
-                size = 3
+                #size = 3
                 #mask = mask + get_topk(mask_*mask_in_boxes, k=k//(size*4-3))
             else:
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
@@ -173,11 +172,10 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
         t+=1
 
-        adv_img = img  + w*mask_grid[:,:,None]
-        adv_img = torch.clamp(adv_img, 0, 255)
-        adv_img = adv_img.to(device)
         attack_loss, object_num = 0, 0
         box_loss, box_object_num = 0, 0
+        adv_img = img  + w*mask_grid[:,:,None]
+
         for helper in model_helpers:
             al, on = helper.attack_loss(adv_img, t=0.3)
 
@@ -199,11 +197,9 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             min_object_num=object_num
             min_img = adv_img.clone()
             min_mask_sum = mask_grid.sum()
-            add_num = 0
+            #add_num = 0
 
-
-
-        if add_num>30 and len(last_mask_list)>0:
+        if add_num>20:
             #mask = last_mask_list[-1]
             #if len(last_mask_list)>1 and object_num>last_object_num[-1]:
             #if len(last_mask_list)>1 and last_object_num[-1]<20:
@@ -224,11 +220,14 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
         #w = w - eps * m.sign() * mask_grid[:,:,None]
         w = w - eps * m.sign()
-        w = w.detach().to(adv_img.device)
 
-        #tmp_img = torch.clamp(img+w, 0, 255)
-        #w = tmp_img - img
+        adv_img = img  + w*mask_grid[:,:,None]
+        adv_img = torch.clamp(adv_img, 0, 255)
+        w = adv_img - img
+
+        w = w.detach().to(adv_img.device)
         w.requires_grad = True
+
 
     try: min_img = min_img.detach().cpu().numpy()
     except Exception: min_img = min_img.numpy()
