@@ -57,9 +57,9 @@ def get_k(attack_loss):
 
 def get_k_by_num(num):
     if num<2:
-        k=50
+        k=30
     elif num<5:
-        k = 100
+        k = 50
     elif num<10:
         k=200
     else:
@@ -202,7 +202,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
 
 
-        if add_num>50 and len(last_mask_list)>0:
+        if add_num>30 and len(last_mask_list)>0:
             #mask = last_mask_list[-1]
             #if len(last_mask_list)>1 and object_num>last_object_num[-1]:
             #if len(last_mask_list)>1 and last_object_num[-1]<20:
