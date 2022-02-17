@@ -153,7 +153,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             else:
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 if object_num<1:
-                    mask = drop_mask(mask, perturbation, k=int(mask.sum()*0.25))
+                    ratio = 0.25 if mask.sum()>5000 else 0.1
+                    mask = drop_mask(mask, perturbation, k=int(mask.sum()*ratio))
                     last_mask_list += [mask]
                     last_object_num += [object_num]
                 """
@@ -221,7 +222,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         #m = 0.5 * m + 0.5 * w.grad
         m = w.grad
 
-        w = w - eps * m.sign() * mask_grid[:,:,None]
+        #w = w - eps * m.sign() * mask_grid[:,:,None]
+        w = w - eps * m.sign()
         w = w.detach().to(adv_img.device)
 
         #tmp_img = torch.clamp(img+w, 0, 255)
