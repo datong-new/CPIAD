@@ -51,7 +51,7 @@ def get_k(attack_loss):
         k=50
     elif attack_loss<10:
         k=200
-    else: k=10000
+    else: k=1000
 
     return k
 
@@ -59,7 +59,7 @@ def get_k_by_num(num):
     if num<2:
         k=30
     elif num<5:
-        k = 50
+        k = 150
     elif num<10:
         k=200
     else:
@@ -72,7 +72,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     img = torch.from_numpy(img).float().cuda()
     IG = IntegratedGradients(model_helpers)
 
-    t, max_iterations = 0, 1000
+    t, max_iterations = 0, 2000
     eps = 1
     w = torch.zeros(img.shape, device='cuda').float()+127
     w.requires_grad = True
@@ -95,7 +95,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
 
     add_interval = 60
     max_perturb_num = 500*500*0.02
-    max_iterations = 1000
+    max_iterations = 2000
     first_box_add = True
     add_num = 0
     attack_loss = 1000

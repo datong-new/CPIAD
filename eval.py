@@ -36,7 +36,8 @@ def count_detection_score_yolov4(selected_path, json_name, output_dir):
         
         #img_file_dir2 = selected_path.replace('_p', '')  # clean
         img_file_dir2 = selected_path.split("_")[0]
-        img_path0 = os.path.join(img_file_dir2, img_name)
+        #img_path0 = os.path.join(img_file_dir2, img_name)
+        img_path0 = os.path.join(selected_path.split("_")[0], img_name.split("_")[0]+"png")
         img_path0 = img_path0.replace("_fail", "")
         img0 = Image.open(img_path0).convert('RGB')
 
@@ -57,7 +58,7 @@ def count_detection_score_yolov4(selected_path, json_name, output_dir):
         assert len(boxes0) != 0
 
         bb_score = 1 - min(len(boxes0), len(boxes1))/len(boxes0)
-        bb_score_dict[img_name] = bb_score
+        bb_score_dict[img_name] = [bb_score, len(boxes1), len(boxes0)]
 
     with open(os.path.join(output_dir, json_name), 'w') as f_obj:
         json.dump(bb_score_dict, f_obj)
@@ -76,8 +77,9 @@ def count_connected_domin_score(max_total_area_rate, selected_path, max_patch_nu
         img_name = files[img_name_index]
         #img_path0 = os.path.join(selected_path.replace('_p', ''), img_name)
 
-        img_path0 = os.path.join(selected_path.split("_")[0], img_name)
+        img_path0 = os.path.join(selected_path.split("_")[0], img_name.split("_")[0]+"png")
         img_path0 = img_path0.replace("_fail", "")
+
         img0 = Image.open(img_path0).convert('RGB')
         img_path1 = os.path.join(selected_path, img_name)
         img1 = Image.open(img_path1).convert('RGB')
@@ -145,11 +147,20 @@ def compute_overall_score(json1, json2, output_dir, output_json):
     #assert len(bbox_score_dict) == len(connected_domin_score_dict)
     score_sum = 0
     overall_score = {}
+    APP, BBR_0, BBR_1, SR = 0, 0, 0, 0
     for (k, _) in bbox_score_dict.items():
         if not k in connected_domin_score_dict: continue
-        overall_score[k] = connected_domin_score_dict[k] * bbox_score_dict[k]
-        score_sum += connected_domin_score_dict[k] * bbox_score_dict[k]
+        overall_score[k] = connected_domin_score_dict[k] * bbox_score_dict[k][0]
+        score_sum += connected_domin_score_dict[k] * bbox_score_dict[k][0]
+        APP += (2-connected_domin_score_dict[k])/50
+        BBR_0 += bbox_score_dict[k][1]
+        BBR_1 += bbox_score_dict[k][2]
+        if bbox_score_dict[k][1]==0: SR+=1
+
     print('Overall score: ', score_sum)
+    print("BBR", BBR_0/BBR_1)
+    print("SR", SR/len(bbox_score_dict.keys()))
+    print("APP", APP/len(bbox_score_dict.keys()))
     print('Saving into {}...'.format(output_json))
     with open(os.path.join(output_dir, output_json), 'w') as f_obj:
         json.dump(overall_score, f_obj)
@@ -158,13 +169,15 @@ def compute_overall_score(json1, json2, output_dir, output_json):
 
 if __name__ == '__main__':
     MAX_TOTAL_AREA_RATE = 0.02  # 5000/(500*500) = 0.02
-    max_patch_number = 10
+    max_patch_number = 10000
 
     selected_paths = ["../"+selected_path for selected_path in os.listdir("..") if "images_p" in selected_path]
     print(selected_paths)
     selected_paths = ["../images_p_cross/"]
+    selected_paths = ["./images_attack_grid_itr1000_20/"]
+
     for selected_path in selected_paths:
-        output_dir = selected_path.replace("../images", "./output_data")
+        output_dir = selected_path.replace("./images", "./output_data")
     
         os.system("mkdir -p " + output_dir)
         # compute_connected_domin_score

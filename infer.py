@@ -24,7 +24,8 @@ def infer(config, checkpoint, img_file_dir, output_dir, json_name='bbox_score.js
         if os.path.splitext(file_name)[1] not in ['.jpg', '.png', '.bmp', '.gif']:
             continue
         result_p = inference_detector(model, os.path.join(img_dir, file_name))
-        result_c = inference_detector(model, os.path.join(img_dir2, file_name.replace("_fail", "")))
+        #result_c = inference_detector(model, os.path.join(img_dir2, file_name.replace("_fail", "")))
+        result_c = inference_detector(model, os.path.join(img_dir2, file_name.split("_")[0]+"png"))
         if isinstance(result_p, tuple):
             bbox_results, _ = result_p
             result_p = bbox_results
@@ -49,7 +50,7 @@ def infer(config, checkpoint, img_file_dir, output_dir, json_name='bbox_score.js
             #print("result_above_confidence_num_c", result_above_confidence_num_c)
             bb_score = 1 - min(result_above_confidence_num_c,
                                result_above_confidence_num_p) / result_above_confidence_num_c
-        results[file_name] = bb_score
+        results[file_name] = [bb_score, result_above_confidence_num_p, result_above_confidence_num_c]
     import json
     with open(os.path.join(output_dir, json_name), 'w') as f_obj:
         json.dump(results, f_obj)
