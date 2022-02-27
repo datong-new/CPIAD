@@ -76,21 +76,31 @@ class VanillaGradient():
 
 
 class IntegratedGradients(VanillaGradient):
-    def get_mask(self, image_tensor, target_class=None, baseline='black', steps=10, process=lambda x: x, box=None):
+    def get_mask(self, image_tensor, target_class=None, baseline='black', steps=10, process=lambda x: x, box=None, attack_type='integrated_grad'):
 
-        H, W, C = image_tensor.size()
-        grad_sum = np.zeros((H,W,C))
-        image_diff = image_tensor - baseline
+        #import pdb; pdb.set_trace()
+        if attack_type=="grad":
+            grad = super(IntegratedGradients, self).get_mask(image_tensor, target_class, box=box)
+            return grad.sum(-1)
+        elif attack_type=="grad_input":
+            grad = super(IntegratedGradients, self).get_mask(image_tensor, target_class, box=box)
+            return (grad * image_tensor.detach().cpu().numpy()).sum(-1)
+        elif attack_type=='random':
+            return np.random.rand(image_tensor.shape[:2])
+        elif attack_type=="integrated_grad":
+            H, W, C = image_tensor.size()
+            grad_sum = np.zeros((H,W,C))
+            image_diff = image_tensor - baseline
 
-        #mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
-        #return mask.sum(-1)
+            #mask = super(IntegratedGradients, self).get_mask(image_tensor, box=box)
+            #return mask.sum(-1)
 
 
-        for step, alpha in enumerate(np.linspace(0, 1, steps)):
-            #print('Processing Integrated Gradients at literation: ', step)
-            image_step = baseline + alpha * image_diff
-            grad_sum += process(super(IntegratedGradients, self).get_mask(image_step, target_class, box=box))
-        return (grad_sum * image_diff.detach().cpu().numpy() / steps).sum(-1)
+            for step, alpha in enumerate(np.linspace(0, 1, steps)):
+                #print('Processing Integrated Gradients at literation: ', step)
+                image_step = baseline + alpha * image_diff
+                grad_sum += process(super(IntegratedGradients, self).get_mask(image_step, target_class, box=box))
+            return (grad_sum * image_diff.detach().cpu().numpy() / steps).sum(-1)
 
 if __name__ == "__main__":
     from faster_helper import Helper as FasterHelper

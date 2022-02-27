@@ -10,6 +10,7 @@ from mmdet.core import bbox2result
 from torch import nn
 from constant import *
 from utils.utils import bbox_iou
+device = 'cuda:0'
 
 mean = torch.tensor([123.675, 116.28 , 103.53 ], dtype=torch.float)
 std = torch.tensor([58.395, 57.12 , 57.375] ,dtype=torch.float)

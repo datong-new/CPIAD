@@ -27,6 +27,7 @@ def create_adv_baseline(ori_img, helpers, mask_in_boxes, iterations=10, eps=1):
     img = ori_img.clone().detach()
     m = 0
     grad_acc = np.zeros(img.shape[:-1])
+    mask_in_boxes = torch.from_numpy(mask_in_boxes).to(img.device)[:,:,None]
 
     for i in range(iterations):
         img.requires_grad = True
@@ -39,10 +40,10 @@ def create_adv_baseline(ori_img, helpers, mask_in_boxes, iterations=10, eps=1):
         attack_loss.backward()
         m = img.grad
         #m = 0.8 * m + 0.2 * img.grad
-        grad_acc = img.grad.cpu().numpy().sum(-1)
-        img = img-eps*torch.sign(m)*torch.from_numpy(mask_in_boxes).to(img.device)[:,:,None]
+        #grad_acc = img.grad.cpu().numpy().sum(-1)
+        img = img-eps*torch.sign(m)*mask_in_boxes
         img = img.detach()
-    return img, grad_acc
+    return img, None
 
 def get_k(attack_loss):
     if attack_loss<1: 
@@ -57,7 +58,7 @@ def get_k(attack_loss):
 
 def get_k_by_num(num):
     if num<2:
-        k=30
+        k=100
     elif num<5:
         k = 150
     elif num<10:
@@ -67,13 +68,13 @@ def get_k_by_num(num):
     return k
 
 
-def ig_attack(model_helpers, img_path, save_image_dir, k=100):
+def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integrated_grad'):
     img = cv2.imread(img_path)
     img = torch.from_numpy(img).float().cuda()
     IG = IntegratedGradients(model_helpers)
 
-    t, max_iterations = 0, 2000
-    eps = 1
+    t, max_iterations = 0, 1000
+    eps = 2
     w = torch.zeros(img.shape, device='cuda').float()+127
     w.requires_grad = True
     success_attack = 0
@@ -93,7 +94,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         box = [int(item) for item in box]
         mask_in_boxes[box[1]:box[3], box[0]:box[2]] = 1
 
-    add_interval = 60
+    add_interval = 30
     max_perturb_num = 500*500*0.02
     max_iterations = 2000
     first_box_add = True
@@ -110,11 +111,14 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     def drop_mask(mask, perturbation, k=100, size=3):
         tmp = perturbation.copy()
 
+        """
+
         for i in range(1, size//2+1):
             tmp[i:, :] += perturbation[:-i, :]
             tmp[:-i, :] += perturbation[i:, :]
             tmp[:, i:] += perturbation[:, :-i]
             tmp[:, :-i] += perturbation[:, i:]
+        """
 
         tmp_ = tmp.reshape(-1)[(mask>0).reshape(-1)]
         tmp_ = tmp_ + np.random.uniform(1, 1e-1, size=tmp_.shape)
@@ -141,8 +145,12 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
     while t<max_iterations:
         if add_num%add_interval==0:
             if object_num>0:
-                baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
-                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device))
+                if attack_type=='integrated_grad':
+                    baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
+                else: 
+                    baseline=None
+
+                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), attack_type=attack_type)
                 #k = get_k(attack_loss)
                 k = get_k_by_num(object_num)
                 mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
@@ -168,7 +176,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
             mask_grid = mask
 
             mask_grid = torch.tensor(mask_grid).to(w.device).float()
-            print("mask.sum()", mask_grid.sum())
+            #print("mask.sum()", mask_grid.sum())
 
         t+=1
 
@@ -212,7 +220,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100):
         if object_num==0:
             success_attack += 1
             add_num = 0
-            #if success_attack>2: break
+            #if success_attack>10: break
         attack_loss.backward()
 
         #m = 0.5 * m + 0.5 * w.grad
@@ -263,7 +271,9 @@ if __name__ == "__main__":
     parser.add_argument('--lines', type=int, default=3)
     parser.add_argument('--box_scale', type=float, default=1.0)
     parser.add_argument('--save_image_dir', type=str, default=None)
+    parser.add_argument('--attack_type', type=str, default=None)
     args = parser.parse_args()
+
     patch_type = args.patch_type
     lines = args.lines
     box_scale = args.box_scale
@@ -285,11 +295,13 @@ if __name__ == "__main__":
 
     os.system("mkdir -p {}".format(save_image_dir))
 
-    images = os.listdir("images")[:50]
-    random.shuffle(images)
+    images = os.listdir("images")[:100]
+    #random.shuffle(images)
 
     for i, img_path in enumerate(images):
         img_path_ps = os.listdir(save_image_dir)
+        img_path_ps = [item.split('-')[0]+"png" for item in img_path_ps]
+
         if img_path in img_path_ps:
             success_count+= 1
             continue
