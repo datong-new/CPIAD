@@ -1,4 +1,5 @@
 import math
+from scipy.ndimage.filters import maximum_filter
 import random
 import asyncio
 from mmdet.apis import init_detector, inference_detector
@@ -96,7 +97,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
 
     add_interval = 30
     max_perturb_num = 500*500*0.02
-    max_iterations = 2000
+    max_iterations = 1000
     first_box_add = True
     add_num = 0
     attack_loss = 1000
@@ -142,15 +143,21 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
     mask = np.zeros((min_img.shape[:2]))
     last_mask_list = []
     last_object_num = []
+
+#    mask_in_boxes = np.ones(img.shape[:-1])
+
     while t<max_iterations:
         if add_num%add_interval==0:
             if object_num>0:
                 if attack_type=='integrated_grad':
                     baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
+                    #a=random.uniform(0.8, 0.9) if random.uniform(0, 1)>0.5 else random.uniform(1.1, 1.2)
+                    #baseline = adv_img * a
                 else: 
                     baseline=None
 
                 mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), attack_type=attack_type)
+                mask_ = mask_ * (mask_== maximum_filter(mask_,footprint=np.ones((4,4))))
                 #k = get_k(attack_loss)
                 k = get_k_by_num(object_num)
                 mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
@@ -161,6 +168,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 if object_num<1:
                     ratio = 0.25 if mask.sum()>5000 else 0.1
+                    ratio = 0.25
                     mask = drop_mask(mask, perturbation, k=int(mask.sum()*ratio))
                     last_mask_list += [mask]
                     last_object_num += [object_num]
@@ -282,6 +290,8 @@ if __name__ == "__main__":
     faster_helper = FasterHelper()
     #model_helpers = [yolov4_helper, faster_helper]
     model_helpers = [faster_helper]
+    #model_helpers = [yolov4_helper]
+
     success_count = 0
 
 

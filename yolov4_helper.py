@@ -110,11 +110,14 @@ class Helper():
         scores = self.get_cls_scores(img)
         thresh_loss = 0
         objects_num = 0
+        loss = 0
         for score in scores:
             objects_num += (score>0.5).sum().item()
+            loss += score.sum()
             mask = score>0.45
             score = score *mask
             if mask.sum()!=0: thresh_loss += (score.sum() / mask.sum())
+        if thresh_loss==0: return loss, objects_num
         return thresh_loss, objects_num
 
 if __name__ == "__main__":

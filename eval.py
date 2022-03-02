@@ -174,7 +174,12 @@ if __name__ == '__main__':
     selected_paths = ["../"+selected_path for selected_path in os.listdir("..") if "images_p" in selected_path]
     print(selected_paths)
     selected_paths = ["../images_p_cross/"]
-    selected_paths = ["./images_attack_grid_itr1000_20/"]
+    #selected_paths = ["./images_yolo_random"]
+    #selected_paths = ["./images_yolo_integrated_grad"]
+    #selected_paths = ["./images_yolo_grad_input"]
+    selected_paths = ["./images_yolo_grad"]
+    selected_paths = ["./images_faster_nobox__random/"]
+    selected_paths = ["./images__multiplybaselineintegrated_grad"]
 
     for selected_path in selected_paths:
         output_dir = selected_path.replace("./images", "./output_data")
