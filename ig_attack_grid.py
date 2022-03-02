@@ -168,7 +168,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
                 perturbation = np.abs(w.detach().cpu().numpy()).sum(-1)
                 if object_num<1:
                     ratio = 0.25 if mask.sum()>5000 else 0.1
-                    ratio = 0.25
+                    #ratio = 0.25
                     mask = drop_mask(mask, perturbation, k=int(mask.sum()*ratio))
                     last_mask_list += [mask]
                     last_object_num += [object_num]
