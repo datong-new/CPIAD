@@ -78,7 +78,6 @@ class VanillaGradient():
 class IntegratedGradients(VanillaGradient):
     def get_mask(self, image_tensor, target_class=None, baseline='black', steps=10, process=lambda x: x, box=None, attack_type='integrated_grad'):
 
-        #import pdb; pdb.set_trace()
         if attack_type=="grad":
             grad = super(IntegratedGradients, self).get_mask(image_tensor, target_class, box=box)
             return grad.sum(-1)
@@ -86,6 +85,7 @@ class IntegratedGradients(VanillaGradient):
             grad = super(IntegratedGradients, self).get_mask(image_tensor, target_class, box=box)
             return (grad * image_tensor.detach().cpu().numpy()).sum(-1)
         elif attack_type=='random':
+            import pdb; pdb.set_trace()
             return np.random.rand(image_tensor.shape[:2])
         elif attack_type=="integrated_grad":
             H, W, C = image_tensor.size()

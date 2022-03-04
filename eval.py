@@ -78,7 +78,7 @@ def count_connected_domin_score(max_total_area_rate, selected_path, max_patch_nu
         #img_path0 = os.path.join(selected_path.replace('_p', ''), img_name)
 
         img_path0 = os.path.join(selected_path.split("_")[0], img_name.split("_")[0]+"png")
-        img_path0 = img_path0.replace("_fail", "")
+        #img_path0 = img_path0.replace("_fail", "")
 
         img0 = Image.open(img_path0).convert('RGB')
         img_path1 = os.path.join(selected_path, img_name)
@@ -174,12 +174,19 @@ if __name__ == '__main__':
     selected_paths = ["../"+selected_path for selected_path in os.listdir("..") if "images_p" in selected_path]
     print(selected_paths)
     selected_paths = ["../images_p_cross/"]
+    #selected_paths = ["./images_random"]
     #selected_paths = ["./images_yolo_random"]
     #selected_paths = ["./images_yolo_integrated_grad"]
     #selected_paths = ["./images_yolo_grad_input"]
     selected_paths = ["./images_yolo_grad"]
     selected_paths = ["./images_faster_nobox__random/"]
-    selected_paths = ["./images__multiplybaselineintegrated_grad"]
+    #selected_paths = ["./images__multiplybaselineintegrated_grad"]
+    #selected_paths = ["./images__multiplybaseline_ratio0.25_integrated_grad/"]
+    selected_paths = ["./images_random_100"]
+    selected_paths = ["./images__multiplybaseline_filter6_integrated_grad/"]
+    selected_paths = ["./images__multiplybaseline_filter8_integrated_grad/"]
+    selected_paths = ["./images__multiplybaseline_filter10_integrated_grad/"]
+
 
     for selected_path in selected_paths:
         output_dir = selected_path.replace("./images", "./output_data")

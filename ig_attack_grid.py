@@ -156,8 +156,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
                 else: 
                     baseline=None
 
-                mask_ = IG.get_mask(adv_img.detach(), baseline=baseline.detach().to(adv_img.device), attack_type=attack_type)
-                mask_ = mask_ * (mask_== maximum_filter(mask_,footprint=np.ones((4,4))))
+                mask_ = IG.get_mask(adv_img.detach(), baseline=(None if baseline is None else baseline.detach().to(adv_img.device)), attack_type=attack_type)
+                mask_ = mask_ * (mask_== maximum_filter(mask_,footprint=np.ones((10,10))))
                 #k = get_k(attack_loss)
                 k = get_k_by_num(object_num)
                 mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
@@ -321,7 +321,7 @@ if __name__ == "__main__":
         img_path = os.path.join("images", img_path)
         #img_path = os.path.join("images", "4412.png")
 
-        success_attack = ig_attack(model_helpers, img_path, save_image_dir)
+        success_attack = ig_attack(model_helpers, img_path, save_image_dir, attack_type=args.attack_type)
         if success_attack: success_count += 1
         print("success: {}/{}".format(success_count, i))
 
