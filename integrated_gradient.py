@@ -85,8 +85,7 @@ class IntegratedGradients(VanillaGradient):
             grad = super(IntegratedGradients, self).get_mask(image_tensor, target_class, box=box)
             return (grad * image_tensor.detach().cpu().numpy()).sum(-1)
         elif attack_type=='random':
-            import pdb; pdb.set_trace()
-            return np.random.rand(image_tensor.shape[:2])
+            return np.random.uniform(size=image_tensor.shape[:2])
         elif attack_type=="integrated_grad":
             H, W, C = image_tensor.size()
             grad_sum = np.zeros((H,W,C))

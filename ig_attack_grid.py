@@ -69,7 +69,7 @@ def get_k_by_num(num):
     return k
 
 
-def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integrated_grad'):
+def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integrated_grad', filter=10):
     img = cv2.imread(img_path)
     img = torch.from_numpy(img).float().cuda()
     IG = IntegratedGradients(model_helpers)
@@ -105,8 +105,8 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
     object_num = 1000
 
     def get_topk(mask_, k=20):
-        kth = np.sort(mask_.reshape(-1))[::-1][k-1]
-        mask = mask_>=kth
+        kth = np.sort(mask_.reshape(-1))[::-1][k]
+        mask = mask_>kth
         return mask
 
     def drop_mask(mask, perturbation, k=100, size=3):
@@ -157,7 +157,7 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
                     baseline=None
 
                 mask_ = IG.get_mask(adv_img.detach(), baseline=(None if baseline is None else baseline.detach().to(adv_img.device)), attack_type=attack_type)
-                mask_ = mask_ * (mask_== maximum_filter(mask_,footprint=np.ones((10,10))))
+                mask_ = mask_ * (mask_== maximum_filter(mask_,footprint=np.ones((filter,filter))))
                 #k = get_k(attack_loss)
                 k = get_k_by_num(object_num)
                 mask = (mask + get_topk(mask_*mask_in_boxes, k=k))>0
@@ -278,19 +278,24 @@ if __name__ == "__main__":
     parser.add_argument('--patch_type', type=str, default="grid")
     parser.add_argument('--lines', type=int, default=3)
     parser.add_argument('--box_scale', type=float, default=1.0)
+    parser.add_argument('--filter', type=int, default=1)
     parser.add_argument('--save_image_dir', type=str, default=None)
     parser.add_argument('--attack_type', type=str, default=None)
+    parser.add_argument('--model', type=str, default="faster")
     args = parser.parse_args()
 
     patch_type = args.patch_type
     lines = args.lines
     box_scale = args.box_scale
+    filter = args.filter
 
     yolov4_helper = YoLov4Helper()
     faster_helper = FasterHelper()
     #model_helpers = [yolov4_helper, faster_helper]
-    model_helpers = [faster_helper]
-    #model_helpers = [yolov4_helper]
+    if args.model=="faster":
+        model_helpers = [faster_helper]
+    elif args.model=='yolo':
+        model_helpers = [yolov4_helper]
 
     success_count = 0
 
@@ -301,7 +306,7 @@ if __name__ == "__main__":
         save_image_dir = "images_p_astroid_{}".format(box_scale)
 
     if args.save_image_dir is not None:
-        save_image_dir = args.save_image_dir
+        save_image_dir = os.path.join(args.save_image_dir,args.model, str(filter))
 
     os.system("mkdir -p {}".format(save_image_dir))
 
@@ -321,7 +326,7 @@ if __name__ == "__main__":
         img_path = os.path.join("images", img_path)
         #img_path = os.path.join("images", "4412.png")
 
-        success_attack = ig_attack(model_helpers, img_path, save_image_dir, attack_type=args.attack_type)
+        success_attack = ig_attack(model_helpers, img_path, save_image_dir, attack_type=args.attack_type, filter=filter)
         if success_attack: success_count += 1
         print("success: {}/{}".format(success_count, i))
 

@@ -163,7 +163,13 @@ def compute_overall_score(json1, json2, output_dir, output_json):
     print("APP", APP/len(bbox_score_dict.keys()))
     print('Saving into {}...'.format(output_json))
     with open(os.path.join(output_dir, output_json), 'w') as f_obj:
-        json.dump(overall_score, f_obj)
+        json.dump(
+                [
+                    score_sum,
+                    BBR_0/BBR_1,
+                    SR/len(bbox_score_dict.keys()),
+                    APP/len(bbox_score_dict.keys())
+                ],  f_obj)
 
 
 
@@ -186,7 +192,14 @@ if __name__ == '__main__':
     selected_paths = ["./images__multiplybaseline_filter6_integrated_grad/"]
     selected_paths = ["./images__multiplybaseline_filter8_integrated_grad/"]
     selected_paths = ["./images__multiplybaseline_filter10_integrated_grad/"]
+    #selected_paths = ["./images__multiplybaseline_filter12_integrated_grad/"]
+    #selected_paths = ["./images__filter10_random/"]
+    #selected_paths = ["./images__filter10_grad/"]
+    #selected_paths = ["./images__filter10_grad_input/"]
 
+    selected_paths = ["./images_random/1"]
+    adv_dir = "./images_random/"
+    selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in range(1, 17, 2)]
 
     for selected_path in selected_paths:
         output_dir = selected_path.replace("./images", "./output_data")
