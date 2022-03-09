@@ -178,48 +178,37 @@ if __name__ == '__main__':
     max_patch_number = 10000
 
     selected_paths = ["../"+selected_path for selected_path in os.listdir("..") if "images_p" in selected_path]
-    print(selected_paths)
-    selected_paths = ["../images_p_cross/"]
-    #selected_paths = ["./images_random"]
-    #selected_paths = ["./images_yolo_random"]
-    #selected_paths = ["./images_yolo_integrated_grad"]
-    #selected_paths = ["./images_yolo_grad_input"]
-    selected_paths = ["./images_yolo_grad"]
-    selected_paths = ["./images_faster_nobox__random/"]
-    #selected_paths = ["./images__multiplybaselineintegrated_grad"]
-    #selected_paths = ["./images__multiplybaseline_ratio0.25_integrated_grad/"]
-    selected_paths = ["./images_random_100"]
-    selected_paths = ["./images__multiplybaseline_filter6_integrated_grad/"]
-    selected_paths = ["./images__multiplybaseline_filter8_integrated_grad/"]
-    selected_paths = ["./images__multiplybaseline_filter10_integrated_grad/"]
-    #selected_paths = ["./images__multiplybaseline_filter12_integrated_grad/"]
-    #selected_paths = ["./images__filter10_random/"]
-    #selected_paths = ["./images__filter10_grad/"]
-    #selected_paths = ["./images__filter10_grad_input/"]
 
-    selected_paths = ["./images_random/1"]
-    adv_dir = "./images_random/"
-    selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in range(1, 17, 2)]
+    adv_dir = "./images_integrated_grad/faster/"
+    adv_dir = "./images_grad_input/faster/"
 
-    for selected_path in selected_paths:
-        output_dir = selected_path.replace("./images", "./output_data")
-    
-        os.system("mkdir -p " + output_dir)
-        # compute_connected_domin_score
-        cd_json_name = 'connected_domin_score.json'
-        if not os.path.exists(os.path.join(output_dir, cd_json_name)): 
-            count_connected_domin_score(MAX_TOTAL_AREA_RATE, selected_path, max_patch_number, cd_json_name, output_dir)
-    
-        # compute_boundingbox_score
-        bb_json_name = 'whitebox_yolo_boundingbox_score.json'
-        whitebox_yolo_result = 'whitebox_yolo_overall_score.json'
-        if not os.path.exists(os.path.join(output_dir, bb_json_name)):
-            count_detection_score_yolov4(selected_path, bb_json_name, output_dir)
-        compute_overall_score(cd_json_name, bb_json_name, output_dir, whitebox_yolo_result)
-    
-        bb_json_name = 'whitebox_fasterrcnn_boundingbox_score.json'
-        whitebox_fasterrcnn_result = 'whitebox_fasterrcnn_overall_score.json'
-        if not os.path.exists(os.path.join(output_dir, bb_json_name)):
-            count_detection_score_fasterrcnn(selected_path, bb_json_name, output_dir)    
-        compute_overall_score(cd_json_name, bb_json_name, output_dir, whitebox_fasterrcnn_result)
+    adv_dir = "./images_grad/yolo/"
+    adv_dir = "./images_random/yolo/"
+    for model in ['faster', 'yolo']:
+        for attack_type in ['random', 'grad', 'grad_input', 'integrated_grad']:
+            adv_dir = "./images_{}/{}/".format(attack_type, model)
+            selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in range(1, 17, 2)]
 
+            for selected_path in selected_paths:
+                assert len(os.listdir(selected_path))==100, selected_path
+                output_dir = selected_path.replace("./images", "./output_data")
+            
+                os.system("mkdir -p " + output_dir)
+                # compute_connected_domin_score
+                cd_json_name = 'connected_domin_score.json'
+                if not os.path.exists(os.path.join(output_dir, cd_json_name)): 
+                    count_connected_domin_score(MAX_TOTAL_AREA_RATE, selected_path, max_patch_number, cd_json_name, output_dir)
+            
+                # compute_boundingbox_score
+                bb_json_name = 'whitebox_yolo_boundingbox_score.json'
+                whitebox_yolo_result = 'whitebox_yolo_overall_score.json'
+                if not os.path.exists(os.path.join(output_dir, bb_json_name)):
+                    count_detection_score_yolov4(selected_path, bb_json_name, output_dir)
+                compute_overall_score(cd_json_name, bb_json_name, output_dir, whitebox_yolo_result)
+            
+                bb_json_name = 'whitebox_fasterrcnn_boundingbox_score.json'
+                whitebox_fasterrcnn_result = 'whitebox_fasterrcnn_overall_score.json'
+                if not os.path.exists(os.path.join(output_dir, bb_json_name)):
+                    count_detection_score_fasterrcnn(selected_path, bb_json_name, output_dir)    
+                compute_overall_score(cd_json_name, bb_json_name, output_dir, whitebox_fasterrcnn_result)
+        

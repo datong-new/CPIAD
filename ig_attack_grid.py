@@ -69,12 +69,12 @@ def get_k_by_num(num):
     return k
 
 
-def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integrated_grad', filter=10):
+def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integrated_grad', filter=10, max_iterations=1000):
     img = cv2.imread(img_path)
     img = torch.from_numpy(img).float().cuda()
     IG = IntegratedGradients(model_helpers)
 
-    t, max_iterations = 0, 1000
+    t = 0
     eps = 2
     w = torch.zeros(img.shape, device='cuda').float()+127
     w.requires_grad = True
@@ -97,7 +97,6 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
 
     add_interval = 30
     max_perturb_num = 500*500*0.02
-    max_iterations = 1000
     first_box_add = True
     add_num = 0
     attack_loss = 1000
@@ -315,7 +314,7 @@ if __name__ == "__main__":
 
     for i, img_path in enumerate(images):
         img_path_ps = os.listdir(save_image_dir)
-        img_path_ps = [item.split('-')[0]+"png" for item in img_path_ps]
+        img_path_ps = [item.split('_')[0]+"png" for item in img_path_ps]
 
         if img_path in img_path_ps:
             success_count+= 1
@@ -326,7 +325,7 @@ if __name__ == "__main__":
         img_path = os.path.join("images", img_path)
         #img_path = os.path.join("images", "4412.png")
 
-        success_attack = ig_attack(model_helpers, img_path, save_image_dir, attack_type=args.attack_type, filter=filter)
+        success_attack = ig_attack(model_helpers, img_path, save_image_dir, attack_type=args.attack_type, filter=filter, max_iterations=1000 if args.model=="faster" else 500)
         if success_attack: success_count += 1
         print("success: {}/{}".format(success_count, i))
 
