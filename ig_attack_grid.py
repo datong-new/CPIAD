@@ -148,10 +148,21 @@ def ig_attack(model_helpers, img_path, save_image_dir, k=100, attack_type='integ
     while t<max_iterations:
         if add_num%add_interval==0:
             if object_num>0:
-                if attack_type=='integrated_grad':
-                    baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
-                    #a=random.uniform(0.8, 0.9) if random.uniform(0, 1)>0.5 else random.uniform(1.1, 1.2)
-                    #baseline = adv_img * a
+                if 'integrated_grad' in attack_type:
+                #if attack_type=='integrated_grad':
+                    if "zeros" in attack_type:
+                        baseline = torch.zeros(adv_img.shape)
+                    elif 'ones' in attack_type:
+                        baseline = torch.ones(adv_img.shape) * 255
+                    elif "half" in attack_type:
+                        baseline = torch.ones(adv_img.shape) * 127
+                    elif 'rand' in attack_type:
+                        baseline = torch.rand(adv_img.shape) * 255
+                    elif 'near' in attack_type:
+                        a=random.uniform(0.8, 0.99) if random.uniform(0, 1)>0.5 else random.uniform(1.01, 1.2)
+                        baseline = adv_img * a
+                    else:
+                        baseline, mask_ = create_adv_baseline(adv_img, model_helpers, mask_in_boxes=mask_in_boxes)
                 else: 
                     baseline=None
 

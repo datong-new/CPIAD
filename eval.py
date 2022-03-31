@@ -185,9 +185,14 @@ if __name__ == '__main__':
     adv_dir = "./images_grad/yolo/"
     adv_dir = "./images_random/yolo/"
     for model in ['faster', 'yolo']:
-        for attack_type in ['random', 'grad', 'grad_input', 'integrated_grad']:
-            adv_dir = "./images_{}/{}/".format(attack_type, model)
-            selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in range(1, 17, 2)]
+        #for attack_type in ['random', 'grad', 'grad_input', 'integrated_grad']:
+        for attack_type in ['images_integrated_grad_ones/', 'images_integrated_grad_zeros/','images_integrated_grad_half/', 'images_integrated_grad_rand/', 'images_integrated_grad_near/']:
+
+            #adv_dir = "./images_{}/{}/".format(attack_type, model)
+            #selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in range(1, 17, 2)]
+
+            adv_dir = "./{}/{}/".format(attack_type, model)
+            selected_paths = [os.path.join(adv_dir, str(int(i)))+"/" for i in [15]]
 
             for selected_path in selected_paths:
                 assert len(os.listdir(selected_path))==100, selected_path

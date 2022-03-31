@@ -86,7 +86,7 @@ class IntegratedGradients(VanillaGradient):
             return (grad * image_tensor.detach().cpu().numpy()).sum(-1)
         elif attack_type=='random':
             return np.random.uniform(size=image_tensor.shape[:2])
-        elif attack_type=="integrated_grad":
+        elif "integrated_grad" in attack_type:
             H, W, C = image_tensor.size()
             grad_sum = np.zeros((H,W,C))
             image_diff = image_tensor - baseline

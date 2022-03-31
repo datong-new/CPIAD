@@ -1,8 +1,11 @@
-#
+# -*- coding:utf-8 -*-
 import os
 import json
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 
 
@@ -50,7 +53,6 @@ if __name__ == "__main__":
     model, task = "faster", "score"
     for model in ['faster', 'yolo']:
         for task in ['score', 'app']:
-            plt.clf()
             filter_max = 17
             x = np.arange(1, filter_max, 2)
 
@@ -68,7 +70,7 @@ if __name__ == "__main__":
                 apps = apps[:len(x)]
                 data = scores if task=="score" else apps
                 #print(f"{model}, {task}, {name}", data)
-                print(f"{model}, {task}, {name}", res[-1])
+                #print(f"{model}, {task}, {name}", res[-1])
 
                 # plot
                 plt.plot(x, np.array(data), linestyle='--', label=name, color=get_color(idx)) 
@@ -79,12 +81,5 @@ if __name__ == "__main__":
             plt.xlabel(u"池化核的大小")
             plt.ylabel(u"平均扰动像素数目" if task=='app' else u"总得分")
 
-            plt.savefig(f"{task}_{model}.png")
-
-
-
-
-
-
-
-
+            plt.savefig("{}_{}.png".format(task, model))
+            plt.clf()
